@@ -1,0 +1,40 @@
+# 赛博玄数 - 依赖清单
+
+# GUI
+PyQt6>=6.5.0
+
+# API客户端
+anthropic>=0.25.0
+google-generativeai>=0.3.0
+openai>=1.0.0
+requests>=2.31.0
+
+# 数据处理
+numpy>=1.24.0
+pandas>=2.0.0
+
+# 日期时间
+python-dateutil>=2.8.0
+cnlunar>=0.2.0  # 替换lunardate，修复农历月份计算错误
+
+# 加密
+cryptography>=41.0.0
+
+# 日志
+loguru>=0.7.0
+
+# 配置
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
+
+# PDF导出和可视化
+reportlab>=4.0.0
+matplotlib>=3.5.0
+
+# 测试
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# 开发工具
+black>=23.0.0
+mypy>=1.5.0

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>玄机 - 智能命理助手</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            primary: '#0f0f23',
+                            secondary: '#1a1a2e',
+                            tertiary: '#25253d',
+                        },
+                        accent: {
+                            purple: '#6366f1',
+                            orange: '#f59e0b',
+                            cyan: '#06b6d4',
+                        }
+                    },
+                    fontFamily: {
+                        serif: ['Noto Serif SC', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { scrollbar-width: thin; scrollbar-color: #6366f1 #1a1a2e; }
+        .glass {
+            background: rgba(26, 26, 46, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        .glass-hover:hover {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+        .glow { box-shadow: 0 0 30px rgba(99, 102, 241, 0.3); }
+        .text-gradient {
+            background: linear-gradient(135deg, #6366f1, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .pillar-wood { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .pillar-fire { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .pillar-earth { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .pillar-metal { background: linear-gradient(135deg, #f5f5f5, #d4d4d4); }
+        .pillar-water { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    </style>
+</head>
+<body class="bg-dark-primary text-gray-100 font-serif min-h-screen">
+    <div id="app">
+        <!-- 背景装饰 -->
+        <div class="fixed inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute top-20 left-20 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl"></div>
+            <div class="absolute bottom-20 right-20 w-80 h-80 bg-accent-orange/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <div class="flex min-h-screen relative">
+            <!-- 侧边栏 -->
+            <aside class="w-64 glass border-r border-accent-purple/20 p-4 flex flex-col fixed h-full">
+                <div class="flex items-center gap-3 mb-8 px-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-purple to-accent-orange flex items-center justify-center text-xl">
+                        ☯
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gradient">玄机</h1>
+                        <p class="text-xs text-gray-500">智能命理助手</p>
+                    </div>
+                </div>
+
+                <nav class="flex-1 space-y-2">
+                    <button v-for="item in navItems" :key="item.id"
+                        @click="activeNav = item.id"
+                        :class="['w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all duration-300',
+                            activeNav === item.id
+                                ? 'bg-accent-purple/20 border border-accent-purple/40 text-white'
+                                : 'glass-hover text-gray-400 hover:text-white']">
+                        <span class="text-lg">{{ item.icon }}</span>
+                        <span>{{ item.name }}</span>
+                    </button>
+                </nav>
+
+                <div class="glass rounded-xl p-4 mt-4">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-accent-purple to-accent-cyan flex items-center justify-center">
+                            李
+                        </div>
+                        <div>
+                            <p class="font-medium">李明</p>
+                            <p class="text-xs text-gray-500">高级会员</p>
+                        </div>
+                    </div>
+                    <div class="h-1.5 bg-dark-primary rounded-full overflow-hidden">
+                        <div class="h-full w-3/4 bg-gradient-to-r from-accent-purple to-accent-orange rounded-full"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">本月剩余 75/100 次</p>
+                </div>
+            </aside>
+
+            <!-- 主内容区 -->
+            <main class="flex-1 ml-64 p-6">
+                <!-- 顶部栏 -->
+                <header class="glass rounded-2xl p-4 mb-6 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-bold">{{ currentNavName }}</h2>
+                        <p class="text-sm text-gray-500">探索命理奥秘，洞察人生玄机</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="glass rounded-xl px-4 py-2 flex items-center gap-2">
+                            <span class="text-gray-400">🔍</span>
+                            <input type="text" placeholder="搜索..."
+                                class="bg-transparent border-none outline-none text-sm w-40">
+                        </div>
+                        <button class="glass rounded-xl p-2 glass-hover relative">
+                            <span>🔔</span>
+                            <span class="absolute -top-1 -right-1 w-4 h-4 bg-accent-orange rounded-full text-xs flex items-center justify-center">3</span>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- 欢迎横幅 -->
+                <div class="glass rounded-2xl p-6 mb-6 relative overflow-hidden glow">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-accent-purple/20 rounded-full blur-3xl"></div>
+                    <div class="relative z-10">
+                        <h3 class="text-2xl font-bold mb-2">欢迎回来，<span class="text-gradient">李明</span></h3>
+                        <p class="text-gray-400 mb-4">今日宜：出行、求财、会友 | 忌：动土、开仓</p>
+                        <div class="flex gap-3">
+                            <button @click="showBazi = true"
+                                class="px-6 py-2 bg-gradient-to-r from-accent-purple to-accent-purple/70 rounded-xl font-medium hover:shadow-lg hover:shadow-accent-purple/30 transition-all">
+                                开始推演
+                            </button>
+                            <button class="px-6 py-2 glass rounded-xl glass-hover">
+                                查看运势
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div v-for="stat in stats" :key="stat.label"
+                        class="glass rounded-2xl p-4 glass-hover transition-all cursor-pointer">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-2xl">{{ stat.icon }}</span>
+                            <span :class="['text-sm px-2 py-0.5 rounded-full',
+                                stat.trend > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400']">
+                                {{ stat.trend > 0 ? '+' : '' }}{{ stat.trend }}%
+                            </span>
+                        </div>
+                        <p class="text-2xl font-bold mb-1">{{ stat.value }}</p>
+                        <p class="text-sm text-gray-500">{{ stat.label }}</p>
+                    </div>
+                </div>
+
+                <!-- 主要内容区：对话 + 八字 -->
+                <div class="grid grid-cols-3 gap-6">
+                    <!-- 对话区 -->
+                    <div class="col-span-2 glass rounded-2xl flex flex-col h-[500px]">
+                        <div class="p-4 border-b border-accent-purple/20">
+                            <h3 class="font-bold">智能问答</h3>
+                            <p class="text-xs text-gray-500">支持八字、紫微、奇门、六壬等多种术数</p>
+                        </div>
+
+                        <div class="flex-1 p-4 overflow-y-auto space-y-4">
+                            <div v-for="msg in messages" :key="msg.id"
+                                :class="['flex', msg.isUser ? 'justify-end' : 'justify-start']">
+                                <div :class="['max-w-[80%] rounded-2xl p-4',
+                                    msg.isUser
+                                        ? 'bg-gradient-to-r from-accent-purple to-accent-purple/70 rounded-tr-sm'
+                                        : 'glass rounded-tl-sm']">
+                                    <p class="text-sm leading-relaxed whitespace-pre-line">{{ msg.text }}</p>
+                                    <p class="text-xs mt-2 opacity-50">{{ msg.time }}</p>
+                                </div>
+                            </div>
+
+                            <div v-if="isTyping" class="flex justify-start">
+                                <div class="glass rounded-2xl rounded-tl-sm p-4">
+                                    <div class="flex gap-1">
+                                        <span class="w-2 h-2 bg-accent-purple rounded-full animate-bounce"></span>
+                                        <span class="w-2 h-2 bg-accent-purple rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                                        <span class="w-2 h-2 bg-accent-purple rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 border-t border-accent-purple/20">
+                            <div class="flex gap-3">
+                                <input v-model="inputText"
+                                    @keyup.enter="sendMessage"
+                                    type="text"
+                                    placeholder="输入您的问题，如：分析我的八字命盘..."
+                                    class="flex-1 bg-dark-tertiary rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-accent-purple/50">
+                                <button @click="sendMessage"
+                                    class="px-6 py-3 bg-gradient-to-r from-accent-purple to-accent-orange rounded-xl font-medium hover:shadow-lg hover:shadow-accent-purple/30 transition-all">
+                                    发送
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 八字命盘 -->
+                    <div class="glass rounded-2xl p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold">八字命盘</h3>
+                            <button @click="showBazi = true" class="text-accent-purple text-sm hover:underline">编辑</button>
+                        </div>
+
+                        <!-- 四柱 -->
+                        <div class="grid grid-cols-4 gap-2 mb-6">
+                            <div v-for="pillar in baziPillars" :key="pillar.name" class="text-center">
+                                <p class="text-xs text-gray-500 mb-2">{{ pillar.name }}</p>
+                                <div :class="['rounded-xl p-3 mb-2', pillar.tianClass]">
+                                    <p class="text-lg font-bold text-white">{{ pillar.tian }}</p>
+                                </div>
+                                <div :class="['rounded-xl p-3', pillar.diClass]">
+                                    <p class="text-lg font-bold text-white">{{ pillar.di }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 五行分析 -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-medium mb-3">五行分布</h4>
+                            <div class="space-y-2">
+                                <div v-for="element in wuxing" :key="element.name" class="flex items-center gap-3">
+                                    <span class="w-8 text-center">{{ element.icon }}</span>
+                                    <span class="w-8 text-sm">{{ element.name }}</span>
+                                    <div class="flex-1 h-2 bg-dark-primary rounded-full overflow-hidden">
+                                        <div :class="['h-full rounded-full', element.color]"
+                                            :style="{width: element.percent + '%'}"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 w-8">{{ element.percent }}%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 快捷功能 -->
+                        <div>
+                            <h4 class="text-sm font-medium mb-3">快捷推演</h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button v-for="action in quickActions" :key="action.name"
+                                    @click="quickAnalysis(action.name)"
+                                    class="glass rounded-xl p-3 text-center glass-hover transition-all">
+                                    <span class="text-xl block mb-1">{{ action.icon }}</span>
+                                    <span class="text-xs">{{ action.name }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 理论选择 -->
+                <div class="mt-6 glass rounded-2xl p-4">
+                    <h3 class="font-bold mb-4">选择推演理论</h3>
+                    <div class="grid grid-cols-8 gap-3">
+                        <button v-for="theory in theories" :key="theory.name"
+                            @click="selectTheory(theory)"
+                            :class="['glass rounded-xl p-4 text-center glass-hover transition-all',
+                                selectedTheory === theory.name ? 'ring-2 ring-accent-purple' : '']">
+                            <span class="text-2xl block mb-2">{{ theory.icon }}</span>
+                            <span class="text-sm">{{ theory.name }}</span>
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 八字输入弹窗 -->
+        <div v-if="showBazi" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="showBazi = false">
+            <div class="glass rounded-2xl p-6 w-[500px] glow">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-bold">输入生辰八字</h3>
+                    <button @click="showBazi = false" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="text-sm text-gray-400 block mb-2">出生日期</label>
+                        <input type="date" v-model="birthDate"
+                            class="w-full bg-dark-tertiary rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-accent-purple/50">
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-400 block mb-2">出生时辰</label>
+                        <select v-model="birthHour"
+                            class="w-full bg-dark-tertiary rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-accent-purple/50">
+                            <option v-for="hour in hours" :key="hour.value" :value="hour.value">{{ hour.label }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-400 block mb-2">性别</label>
+                        <select v-model="gender"
+                            class="w-full bg-dark-tertiary rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-accent-purple/50">
+                            <option value="male">男</option>
+                            <option value="female">女</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-400 block mb-2">出生地点</label>
+                        <input type="text" v-model="birthPlace" placeholder="如：北京"
+                            class="w-full bg-dark-tertiary rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-accent-purple/50">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button @click="showBazi = false" class="px-6 py-2 glass rounded-xl glass-hover">取消</button>
+                    <button @click="calculateBazi"
+                        class="px-6 py-2 bg-gradient-to-r from-accent-purple to-accent-orange rounded-xl font-medium hover:shadow-lg hover:shadow-accent-purple/30 transition-all">
+                        开始推演
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const { createApp, ref, computed } = Vue
+
+    createApp({
+        setup() {
+            const activeNav = ref('问道')
+            const showBazi = ref(false)
+            const inputText = ref('')
+            const isTyping = ref(false)
+            const selectedTheory = ref('')
+
+            // 表单数据
+            const birthDate = ref('1990-01-15')
+            const birthHour = ref('zi')
+            const gender = ref('male')
+            const birthPlace = ref('北京')
+
+            const navItems = [
+                { id: '问道', name: '问道', icon: '💬' },
+                { id: '推演', name: '推演', icon: '🔮' },
+                { id: '典籍', name: '典籍', icon: '📚' },
+                { id: '洞察', name: '洞察', icon: '📊' },
+                { id: '历史', name: '历史', icon: '📜' },
+                { id: '设置', name: '设置', icon: '⚙️' },
+            ]
+
+            const stats = [
+                { icon: '💬', value: '128', label: '对话次数', trend: 12 },
+                { icon: '🔮', value: '45', label: '推演次数', trend: 8 },
+                { icon: '📚', value: '23', label: '收藏典籍', trend: -3 },
+                { icon: '⭐', value: '4.9', label: '准确评分', trend: 2 },
+            ]
+
+            const messages = ref([
+                { id: 1, isUser: false, text: '您好！我是玄机智能命理助手。我可以为您提供八字、紫微斗数、奇门遁甲等多种命理分析服务。\n\n请问您想了解什么？', time: '10:30' },
+                { id: 2, isUser: true, text: '请帮我分析一下今年的事业运势', time: '10:32' },
+                { id: 3, isUser: false, text: '好的，根据您的八字命盘分析：\n\n📊 事业运势：★★★★☆\n\n今年流年与您的日主相生，事业方面有较好的发展机遇。建议把握以下几点：\n\n1. 上半年适合拓展人脉\n2. 下半年有贵人相助\n3. 注意与属虎、属马的人合作', time: '10:33' },
+            ])
+
+            const baziPillars = [
+                { name: '年柱', tian: '庚', di: '午', tianClass: 'pillar-metal', diClass: 'pillar-fire' },
+                { name: '月柱', tian: '丁', di: '丑', tianClass: 'pillar-fire', diClass: 'pillar-earth' },
+                { name: '日柱', tian: '甲', di: '子', tianClass: 'pillar-wood', diClass: 'pillar-water' },
+                { name: '时柱', tian: '壬', di: '申', tianClass: 'pillar-water', diClass: 'pillar-metal' },
+            ]
+
+            const wuxing = [
+                { name: '木', icon: '🌳', percent: 25, color: 'bg-green-500' },
+                { name: '火', icon: '🔥', percent: 15, color: 'bg-red-500' },
+                { name: '土', icon: '⛰️', percent: 20, color: 'bg-amber-500' },
+                { name: '金', icon: '🪙', percent: 25, color: 'bg-gray-300' },
+                { name: '水', icon: '💧', percent: 15, color: 'bg-blue-500' },
+            ]
+
+            const quickActions = [
+                { name: '今日运势', icon: '📅' },
+                { name: '姻缘分析', icon: '💑' },
+                { name: '财运预测', icon: '💰' },
+                { name: '健康建议', icon: '🏥' },
+            ]
+
+            const theories = [
+                { name: '八字', icon: '🎋' },
+                { name: '紫微', icon: '⭐' },
+                { name: '奇门', icon: '🚪' },
+                { name: '六壬', icon: '🌊' },
+                { name: '六爻', icon: '☰' },
+                { name: '梅花', icon: '🌸' },
+                { name: '小六壬', icon: '🎲' },
+                { name: '测字', icon: '📝' },
+            ]
+
+            const hours = [
+                { value: 'zi', label: '子时 (23:00-01:00)' },
+                { value: 'chou', label: '丑时 (01:00-03:00)' },
+                { value: 'yin', label: '寅时 (03:00-05:00)' },
+                { value: 'mao', label: '卯时 (05:00-07:00)' },
+                { value: 'chen', label: '辰时 (07:00-09:00)' },
+                { value: 'si', label: '巳时 (09:00-11:00)' },
+                { value: 'wu', label: '午时 (11:00-13:00)' },
+                { value: 'wei', label: '未时 (13:00-15:00)' },
+                { value: 'shen', label: '申时 (15:00-17:00)' },
+                { value: 'you', label: '酉时 (17:00-19:00)' },
+                { value: 'xu', label: '戌时 (19:00-21:00)' },
+                { value: 'hai', label: '亥时 (21:00-23:00)' },
+            ]
+
+            const currentNavName = computed(() => {
+                const item = navItems.find(n => n.id === activeNav.value)
+                return item ? item.name : ''
+            })
+
+            const sendMessage = () => {
+                if (!inputText.value.trim()) return
+
+                const now = new Date()
+                const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
+
+                messages.value.push({
+                    id: Date.now(),
+                    isUser: true,
+                    text: inputText.value,
+                    time
+                })
+
+                const userQuestion = inputText.value
+                inputText.value = ''
+                isTyping.value = true
+
+                // 模拟AI回复
+                setTimeout(() => {
+                    isTyping.value = false
+                    messages.value.push({
+                        id: Date.now() + 1,
+                        isUser: false,
+                        text: generateResponse(userQuestion),
+                        time: `${now.getHours()}:${String(now.getMinutes() + 1).padStart(2, '0')}`
+                    })
+                }, 1500)
+            }
+
+            const generateResponse = (question) => {
+                const responses = [
+                    `关于"${question}"的分析：\n\n根据您的命盘推算，这是一个值得关注的问题。建议您：\n\n1. 把握时机，顺势而为\n2. 多与贵人沟通交流\n3. 保持积极心态\n\n如需更详细的分析，请选择具体的推演理论。`,
+                    `您好，针对您的问题，我从命理角度分析如下：\n\n🔮 整体趋势：稳中向好\n💡 建议方向：稳扎稳打\n⏰ 最佳时机：近期\n\n具体情况还需要结合您的生辰八字进行深入分析。`,
+                ]
+                return responses[Math.floor(Math.random() * responses.length)]
+            }
+
+            const selectTheory = (theory) => {
+                selectedTheory.value = theory.name
+                messages.value.push({
+                    id: Date.now(),
+                    isUser: false,
+                    text: `已切换到【${theory.name}】推演模式 ${theory.icon}\n\n${theory.name}是中国传统命理学的重要组成部分，可以为您提供独特的人生指导。\n\n请输入您的问题，我将使用${theory.name}理论为您分析。`,
+                    time: new Date().toTimeString().slice(0, 5)
+                })
+            }
+
+            const quickAnalysis = (action) => {
+                inputText.value = `请为我进行${action}分析`
+                sendMessage()
+            }
+
+            const calculateBazi = () => {
+                showBazi.value = false
+                isTyping.value = true
+
+                setTimeout(() => {
+                    isTyping.value = false
+                    messages.value.push({
+                        id: Date.now(),
+                        isUser: false,
+                        text: `八字命盘已更新！\n\n📅 出生时间：${birthDate.value} ${hours.find(h => h.value === birthHour.value)?.label}\n📍 出生地点：${birthPlace.value}\n👤 性别：${gender.value === 'male' ? '男' : '女'}\n\n根据您的生辰八字，您的命盘显示：\n\n• 日主：甲木\n• 格局：正印格\n• 五行喜用：水、木\n• 五行忌神：火、土\n\n您可以继续提问，我将基于此命盘为您分析。`,
+                        time: new Date().toTimeString().slice(0, 5)
+                    })
+                }, 2000)
+            }
+
+            return {
+                activeNav,
+                showBazi,
+                inputText,
+                isTyping,
+                selectedTheory,
+                birthDate,
+                birthHour,
+                gender,
+                birthPlace,
+                navItems,
+                stats,
+                messages,
+                baziPillars,
+                wuxing,
+                quickActions,
+                theories,
+                hours,
+                currentNavName,
+                sendMessage,
+                selectTheory,
+                quickAnalysis,
+                calculateBazi,
+            }
+        }
+    }).mount('#app')
+    </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "current_theme": "light",
+  "available_themes": [
+    "light",
+    "dark",
+    "zen"
+  ],
+  "theme_descriptions": {
+    "light": "清雅白 - 简洁明亮，适合白天使用",
+    "dark": "墨夜黑 - 护眼深色，适合夜间使用",
+    "zen": "禅意灰 - 平静沉稳，适合长时间阅读"
+  },
+  "auto_switch": false,
+  "auto_switch_times": {
+    "day_theme": "light",
+    "night_theme": "dark",
+    "day_start_hour": 6,
+    "night_start_hour": 18
+  }
+}

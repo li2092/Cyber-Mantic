@@ -1,0 +1,47 @@
+# 赛博玄数 - 用户自定义配置示例
+#
+# 说明：
+# 1. 复制此文件为 user_config.yaml（去掉 .example 后缀）
+# 2. 在 user_config.yaml 中修改你想要自定义的配置项
+# 3. user_config.yaml 中的配置会覆盖 config.yaml 中的默认配置
+# 4. user_config.yaml 不会被git追踪，是你的个人配置文件
+
+# ========================================
+# 历史记录保存路径配置
+# ========================================
+data:
+  history:
+    # 历史记录数据库保存路径
+    # 默认: "data/user/history.db"
+    # 示例: 保存到自定义文件夹
+    db_path: "D:/我的文档/玄数历史记录/history.db"
+
+    # 历史记录导出文件夹
+    # 默认: "data/user/exports"
+    # 示例: 保存到自定义导出文件夹
+    export_folder: "D:/我的文档/玄数历史记录/导出"
+
+# ========================================
+# 其他可自定义的配置
+# ========================================
+
+# 日志配置
+# logging:
+#   level: "DEBUG"  # 调试模式
+#   log_file: "D:/logs/xuanshu.log"  # 自定义日志路径
+
+# 界面配置
+# ui:
+#   theme: "dark"  # 暗黑主题
+#   window_width: 1400
+#   window_height: 900
+
+# 分析配置
+# analysis:
+#   max_theories: 8  # 最多使用8个理论
+#   enable_quick_feedback: false  # 禁用快速反馈
+
+# 隐私配置
+# privacy:
+#   auto_delete_after_days: 90  # 90天后自动删除历史记录
+#   encrypt_local_data: true  # 加密本地数据

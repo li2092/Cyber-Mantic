@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局样式 */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-dark-primary text-gray-100 antialiased;
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+  }
+
+  /* 自定义滚动条 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-tertiary rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary;
+  }
+}
+
+/* 组件样式 */
+@layer components {
+  /* 玻璃卡片 */
+  .glass-card {
+    @apply bg-dark-card backdrop-blur-md border border-white/[0.08] rounded-2xl;
+    @apply transition-all duration-300;
+  }
+
+  .glass-card:hover {
+    @apply border-primary/30 shadow-lg shadow-black/30;
+    transform: translateY(-2px);
+  }
+
+  /* 主按钮 */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl;
+    @apply bg-gradient-to-r from-primary to-primary-dark;
+    @apply text-white font-medium;
+    @apply shadow-lg shadow-primary/30;
+    @apply transition-all duration-200;
+    @apply hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5;
+    @apply active:translate-y-0;
+  }
+
+  /* 次要按钮 */
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl;
+    @apply bg-white/[0.03] border border-white/[0.08];
+    @apply text-gray-100 font-medium;
+    @apply transition-all duration-200;
+    @apply hover:bg-white/[0.06] hover:border-primary;
+  }
+
+  /* 导航按钮 */
+  .nav-btn {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl w-full;
+    @apply text-gray-400 text-sm;
+    @apply transition-all duration-150;
+  }
+
+  .nav-btn:hover {
+    @apply bg-primary/10 text-gray-100;
+  }
+
+  .nav-btn.active {
+    @apply bg-primary/15 text-primary-light;
+    @apply border-l-[3px] border-primary;
+  }
+
+  /* 输入框 */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl;
+    @apply bg-dark-tertiary border border-white/[0.08];
+    @apply text-gray-100 placeholder:text-gray-500;
+    @apply outline-none transition-all duration-200;
+    @apply focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+
+  /* 聊天气泡 */
+  .chat-bubble-ai {
+    @apply bg-dark-tertiary rounded-2xl rounded-bl-sm px-4 py-3;
+    @apply text-gray-100;
+  }
+
+  .chat-bubble-user {
+    @apply bg-gradient-to-r from-primary to-primary-dark rounded-2xl rounded-br-sm px-4 py-3;
+    @apply text-white;
+  }
+
+  /* 统计卡片 */
+  .stat-card {
+    @apply glass-card p-6 cursor-pointer;
+  }
+
+  .stat-card:hover {
+    @apply border-primary;
+  }
+
+  /* 八字柱位 */
+  .bazi-pillar {
+    @apply bg-dark-tertiary border border-white/[0.08] rounded-xl p-4 text-center;
+  }
+
+  /* 五行圆圈 */
+  .wuxing-circle {
+    @apply w-12 h-12 rounded-full flex items-center justify-center;
+    @apply text-lg font-medium;
+  }
+}
+
+/* 动画 */
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .typing-dot {
+    animation: typing 1.4s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
