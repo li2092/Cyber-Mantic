@@ -200,10 +200,13 @@ class ReportGenerator:
 
         # 小六壬结果
         if self.context.xiaoliu_result:
+            xiaoliu_result = self.context.xiaoliu_result
+            judgment = xiaoliu_result.get('judgment', xiaoliu_result.get('吉凶判断', '未知'))
+            position = xiaoliu_result.get('时落宫', xiaoliu_result.get('最终落宫', '未知'))
             xiaoliu_summary = f"""
 **小六壬快判**：
-- 吉凶：{self.context.xiaoliu_result.get('吉凶判断', '未知')}
-- 时落宫：{self.context.xiaoliu_result.get('时落宫', '未知')}
+- 吉凶：{judgment}
+- 时落宫：{position}
 """
             summary += xiaoliu_summary
 

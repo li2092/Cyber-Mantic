@@ -353,9 +353,23 @@ class AIConversationTab(QWidget):
 
         return scroll_area
 
+    def _stop_current_worker(self):
+        """停止当前正在运行的worker线程"""
+        if hasattr(self, 'worker') and self.worker is not None:
+            if self.worker.isRunning():
+                self.logger.info("正在停止当前worker线程...")
+                self.worker.quit()
+                if not self.worker.wait(2000):  # 等待最多2秒
+                    self.logger.warning("Worker线程未能正常退出，强制终止")
+                    self.worker.terminate()
+                    self.worker.wait()
+
     def _start_new_conversation(self):
         """开始新对话"""
         self.logger.info("开始新的AI对话会话")
+
+        # 停止旧的worker线程
+        self._stop_current_worker()
 
         # 重置服务
         self.conversation_service.reset()
@@ -448,6 +462,9 @@ class AIConversationTab(QWidget):
         if self.conversation_service.context.stage in analysis_stages:
             self.progress_widget.show()
             self.progress_widget.reset()
+
+        # 停止旧的worker线程（防止重复发送）
+        self._stop_current_worker()
 
         # 启动异步处理
         self.worker = ConversationWorker(self.conversation_service, user_message)
@@ -796,15 +813,27 @@ class AIConversationTab(QWidget):
 
         if context.xiaoliu_result:
             result = context.xiaoliu_result
-            # 构建小六壬显示
-            judgment = result.get('判断', result.get('judgment', ''))
-            gong = result.get('宫位', result.get('position', ''))
-            advice = result.get('建议', result.get('advice', ''))
+            # 构建小六壬显示 - 使用正确的字段名
+            judgment = result.get('judgment', result.get('吉凶判断', ''))
+            gong = result.get('时落宫', result.get('最终落宫', ''))
+            advice = result.get('advice', '')
+            liu_shen_info = result.get('六神信息', {})
+            zhu_shi = liu_shen_info.get('主事', '') if liu_shen_info else ''
 
             xiaoliu_md = f"""**{gong}** - {judgment}
+
+{zhu_shi}
 
 {advice[:100] + '...' if len(advice) > 100 else advice}
 """
             self.xiaoliu_text.setMarkdown(xiaoliu_md)
         else:
             self.xiaoliu_text.setMarkdown("_等待起卦..._")
+
+    def cleanup(self):
+        """清理资源（关闭窗口时调用）"""
+        try:
+            self._stop_current_worker()
+            self.logger.info("AI对话标签页资源已清理")
+        except Exception as e:
+            self.logger.warning(f"清理AI对话标签页资源时出错: {e}")

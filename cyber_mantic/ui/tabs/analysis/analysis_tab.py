@@ -380,10 +380,18 @@ class AnalysisTab(QWidget):
         """清理资源"""
         if self.worker:
             try:
+                # 先停止线程
+                if self.worker.isRunning():
+                    self.worker.quit()
+                    if not self.worker.wait(2000):  # 等待最多2秒
+                        self.logger.warning("AnalysisWorker线程未能正常退出，强制终止")
+                        self.worker.terminate()
+                        self.worker.wait()
+                # 然后断开信号
                 self.worker.progress.disconnect()
                 self.worker.finished.disconnect()
                 self.worker.error.disconnect()
             except Exception as e:
-                self.logger.debug(f"清理worker信号失败: {e}")
+                self.logger.debug(f"清理worker失败: {e}")
 
         self.input_panel.cleanup()

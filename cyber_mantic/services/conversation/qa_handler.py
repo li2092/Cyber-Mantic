@@ -366,8 +366,11 @@ class QAHandler:
         elif question_type == "theory_explanation":
             # 提供理论信息
             context_data["selected_theories"] = self.context.selected_theories
+            xiaoliu_judgment = None
+            if self.context.xiaoliu_result:
+                xiaoliu_judgment = self.context.xiaoliu_result.get("judgment", self.context.xiaoliu_result.get("吉凶判断"))
             context_data["theory_results_summary"] = {
-                "小六壬": self.context.xiaoliu_result.get("吉凶判断") if self.context.xiaoliu_result else None,
+                "小六壬": xiaoliu_judgment,
                 "八字": "已分析" if self.context.bazi_result else "未分析",
                 "奇门": "已分析" if self.context.qimen_result else "未分析",
                 "六壬": "已分析" if self.context.liuren_result else "未分析",

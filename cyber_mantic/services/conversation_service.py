@@ -360,7 +360,10 @@ class ConversationService:
         if progress_callback:
             progress_callback("阶段4", "正在分析验证反馈...", 85)
 
-        feedback = await self.nlp_parser.parse_verification_feedback(user_message)
+        feedback = await self.nlp_parser.parse_verification_feedback(
+            user_message,
+            self.context.retrospective_events  # 传入回溯事件列表
+        )
         if feedback:
             self.context.verification_feedback.append({"raw_message": user_message, "parsed_feedback": feedback})
             self._adjust_confidence(feedback)
