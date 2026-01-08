@@ -289,18 +289,20 @@ class QAHandler:
             # 提供完整八字数据
             if self.context.bazi_result:
                 context_data["bazi"] = {
-                    "四柱": self.context.bazi_result.get("四柱", {}),
-                    "五行": self.context.bazi_result.get("五行分析", {}),
+                    "四柱": self.context.bazi_result.get("四柱", []),
+                    "五行": self.context.bazi_result.get("五行统计", {}),
                     "十神": self.context.bazi_result.get("十神", {}),
                     "大运": self.context.bazi_result.get("大运", [])[:3],  # 前3步大运
-                    "流年": self.context.bazi_result.get("流年分析", {})
+                    "用神分析": self.context.bazi_result.get("用神分析", {})
                 }
 
             # 其他理论结果
             if self.context.qimen_result:
                 context_data["qimen_summary"] = {
-                    "值符": self.context.qimen_result.get("值符"),
-                    "用神宫位": self.context.qimen_result.get("用神宫位")
+                    "值符宫": self.context.qimen_result.get("值符宫"),
+                    "值使宫": self.context.qimen_result.get("值使宫"),
+                    "用神宫位": self.context.qimen_result.get("用神宫位"),
+                    "格局": self.context.qimen_result.get("格局", [])
                 }
 
         elif question_type == "advice":
@@ -316,8 +318,8 @@ class QAHandler:
         elif question_type == "compatibility":
             # 合婚/人际关系 - 提供命理匹配分析
             context_data["user_bazi"] = {
-                "八字": self.context.bazi_result.get("四柱", {}) if self.context.bazi_result else None,
-                "五行": self.context.bazi_result.get("五行分析", {}) if self.context.bazi_result else None
+                "八字": self.context.bazi_result.get("四柱", []) if self.context.bazi_result else None,
+                "五行": self.context.bazi_result.get("五行统计", {}) if self.context.bazi_result else None
             }
             context_data["advice_for_relationship"] = self.context.actionable_advice
 
@@ -326,12 +328,23 @@ class QAHandler:
             context_data["career_analysis"] = self.context.predictive_analysis
             context_data["professional_advice"] = self.context.actionable_advice
             if self.context.bazi_result:
-                context_data["favorable_industries"] = self.context.bazi_result.get("适合行业", [])
+                # 根据用神分析推断适合行业
+                useful_god = self.context.bazi_result.get("用神分析", {})
+                context_data["用神"] = useful_god.get("用神", "")
+                context_data["五行喜忌"] = {
+                    "喜神": useful_god.get("喜神", []),
+                    "忌神": useful_god.get("忌神", [])
+                }
 
         elif question_type == "health_concern":
             # 健康问题 - 提供五行健康分析
             if self.context.bazi_result:
-                context_data["wuxing_health"] = self.context.bazi_result.get("五行分析", {})
+                wuxing_stats = self.context.bazi_result.get("五行统计", {})
+                context_data["wuxing_health"] = {
+                    "五行统计": wuxing_stats.get("统计", {}),
+                    "最旺": wuxing_stats.get("最旺", ""),
+                    "最弱": wuxing_stats.get("最弱", "")
+                }
                 context_data["health_advice"] = "基于五行平衡的健康建议"
 
         elif question_type == "financial_planning":
@@ -339,13 +352,19 @@ class QAHandler:
             context_data["wealth_analysis"] = self.context.predictive_analysis
             context_data["financial_advice"] = self.context.actionable_advice
             if self.context.bazi_result:
-                context_data["wealth_stars"] = self.context.bazi_result.get("财星", {})
+                # 从十神中提取财星相关信息
+                ten_gods = self.context.bazi_result.get("十神", {})
+                context_data["十神"] = ten_gods
+                # 用神分析也与财运相关
+                context_data["用神分析"] = self.context.bazi_result.get("用神分析", {})
 
         elif question_type == "timing_selection":
             # 择吉时机 - 提供时间选择建议
             context_data["favorable_times"] = self.context.predictive_analysis
             if self.context.qimen_result:
-                context_data["qimen_timing"] = self.context.qimen_result.get("吉时分析", {})
+                context_data["qimen_timing"] = self.context.qimen_result.get("时机建议", {})
+                context_data["吉利方位"] = self.context.qimen_result.get("吉利方位", [])
+                context_data["不利方位"] = self.context.qimen_result.get("不利方位", [])
 
         elif question_type == "education":
             # 学业考试 - 提供学业运势
@@ -356,7 +375,15 @@ class QAHandler:
             # 感情指导 - 提供桃花运势
             context_data["love_fortune"] = self.context.predictive_analysis
             if self.context.bazi_result:
-                context_data["peach_blossom"] = self.context.bazi_result.get("桃花星", {})
+                # 从神煞中查找桃花信息
+                shensha = self.context.bazi_result.get("神煞", {})
+                taohua_info = []
+                for item in shensha.get("中性", []):
+                    if item.get("名称") == "桃花":
+                        taohua_info.append(item)
+                context_data["桃花"] = taohua_info if taohua_info else None
+                # 神煞分析也包含桃花信息
+                context_data["神煞分析"] = self.context.bazi_result.get("神煞分析", {})
 
         elif question_type == "personal_growth":
             # 个人成长 - 提供发展方向建议
