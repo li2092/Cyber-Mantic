@@ -2,17 +2,21 @@
 ChatWidget - 聊天消息组件
 
 支持显示用户和AI的对话消息，带有美化样式
+- 左侧AI气泡：显示Logo + "赛博玄数"
+- 右侧用户气泡：紫色气泡，不显示头像
+- 气泡宽度自适应，多行时固定宽度
 """
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QTextBrowser,
-    QScrollArea, QLabel, QFrame
+    QScrollArea, QLabel, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPixmap
 from enum import Enum
 from datetime import datetime
 from typing import List, Optional
+import os
 
 
 class AutoResizingTextBrowser(QTextBrowser):
@@ -227,102 +231,174 @@ class TypewriterAnimation:
 
 
 class ChatBubble(QFrame):
-    """单条消息气泡"""
+    """单条消息气泡 - 仿微信/常见聊天软件风格"""
 
-    def __init__(self, message: ChatMessage, font_size: int = 10, animated: bool = False, parent=None):
+    # Logo路径（类变量，只加载一次）
+    _logo_pixmap = None
+    _logo_path = None
+
+    def __init__(self, message: ChatMessage, font_size: int = 11, animated: bool = False,
+                 theme: str = "light", parent=None):
         super().__init__(parent)
         self.message = message
         self.font_size = font_size
         self.animated = animated
-        self.content_browser = None  # 保存内容浏览器引用
-        self.typewriter = None  # 打字机动画控制器
+        self.theme = theme
+        self.content_browser = None
+        self.typewriter = None
+        self._fixed_width = None  # 多行时固定宽度
         self._setup_ui()
 
+    @classmethod
+    def _get_logo_pixmap(cls) -> QPixmap:
+        """获取Logo图片（懒加载）"""
+        if cls._logo_pixmap is None:
+            # 尝试多个可能的路径
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), '..', 'resources', 'app_icon.png'),
+                os.path.join(os.path.dirname(__file__), '..', '..', 'ui', 'resources', 'app_icon.png'),
+                'cyber_mantic/ui/resources/app_icon.png',
+            ]
+            for path in possible_paths:
+                abs_path = os.path.abspath(path)
+                if os.path.exists(abs_path):
+                    cls._logo_path = abs_path
+                    cls._logo_pixmap = QPixmap(abs_path)
+                    break
+            if cls._logo_pixmap is None:
+                cls._logo_pixmap = QPixmap()  # 空图片
+        return cls._logo_pixmap
+
     def _setup_ui(self):
-        """设置UI"""
-        layout = QVBoxLayout()
+        """设置UI - 左右分离的气泡布局"""
+        # 根据主题选择颜色
+        is_dark = self.theme == "dark"
 
-        # 根据消息角色设置不同的边距
-        # 用户消息：右对齐，左侧留更多空间
-        # AI消息：左对齐，右侧留更多空间
+        # 用户气泡颜色（紫色系）
+        user_bubble_bg = "#7C3AED" if not is_dark else "#8B5CF6"  # 紫色
+        user_text_color = "#FFFFFF"
+
+        # AI气泡颜色
+        ai_bubble_bg = "#FFFFFF" if not is_dark else "#2D2D3A"
+        ai_text_color = "#1E293B" if not is_dark else "#F1F5F9"
+        ai_border_color = "#E2E8F0" if not is_dark else "#3D3D4A"
+
+        # 主布局
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(16, 6, 16, 6)  # 左右留空16px
+        main_layout.setSpacing(10)
+
         if self.message.role == MessageRole.USER:
-            layout.setContentsMargins(60, 2, 10, 2)  # 左侧60px，右侧10px，上下减小到2px
-        else:
-            layout.setContentsMargins(10, 2, 60, 2)  # 左侧10px，右侧60px，上下减小到2px
+            # ========== 用户消息：右侧紫色气泡，不显示头像 ==========
+            main_layout.addStretch()  # 左侧弹性空间，推到右边
 
-        layout.setSpacing(2)
+            # 气泡容器
+            bubble_widget = QFrame()
+            bubble_widget.setObjectName("userBubble")
+            bubble_layout = QVBoxLayout(bubble_widget)
+            bubble_layout.setContentsMargins(14, 10, 14, 10)
+            bubble_layout.setSpacing(0)
 
-        # 消息头部（角色 + 时间）
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(8)
+            # 消息内容
+            self.content_browser = AutoResizingTextBrowser()
+            self.content_browser.setReadOnly(True)
+            self.content_browser.setFrameStyle(QFrame.Shape.NoFrame)
 
-        # 角色图标和名称
-        role_label = QLabel()
-        if self.message.role == MessageRole.USER:
-            role_label.setText("👤 您")
-            role_label.setStyleSheet("color: #1976D2; font-weight: bold; font-size: 11pt;")
-        elif self.message.role == MessageRole.ASSISTANT:
-            role_label.setText("🤖 AI助手")
-            role_label.setStyleSheet("color: #388E3C; font-weight: bold; font-size: 11pt;")
-        else:
-            role_label.setText("ℹ️ 系统")
-            role_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
+            font = QFont()
+            font.setPointSize(self.font_size)
+            self.content_browser.setFont(font)
+            self.content_browser.document().setDocumentMargin(0)
 
-        # 根据角色决定头像位置
-        if self.message.role == MessageRole.USER:
-            header_layout.addStretch()  # 用户消息靠右
-
-        header_layout.addWidget(role_label)
-
-        # 时间戳
-        time_label = QLabel(self.message.timestamp.strftime("%H:%M:%S"))
-        time_label.setStyleSheet("font-size: 10px;")
-        header_layout.addWidget(time_label)
-
-        if self.message.role != MessageRole.USER:
-            header_layout.addStretch()  # AI消息靠左
-
-        layout.addLayout(header_layout)
-
-        # 消息内容 - 使用自动调整高度的TextBrowser
-        # 支持Markdown渲染，内容完全展示，不在气泡内滚动
-        self.content_browser = AutoResizingTextBrowser()
-        self.content_browser.setReadOnly(True)
-        self.content_browser.setFrameStyle(QFrame.Shape.NoFrame)
-
-        # 设置字体
-        font = QFont()
-        font.setPointSize(self.font_size)
-        self.content_browser.setFont(font)
-
-        # 设置文档边距
-        self.content_browser.document().setDocumentMargin(12)
-
-        # 设置背景和样式 - 移除硬编码颜色，使用主题色
-        self.content_browser.setStyleSheet("""
-            AutoResizingTextBrowser {
-                border-radius: 8px;
-                padding: 12px;
-            }
-        """)
-
-        # 根据角色设置内容格式和对齐方式
-        if self.message.role == MessageRole.USER:
-            # 用户消息：纯文本显示（保留换行符），右对齐
+            # 用户消息纯文本，右对齐
             escaped_content = self.message.content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             html_content = escaped_content.replace('\n', '<br>')
-            # 使用完整的HTML结构确保右对齐生效
-            full_html = f'''
-            <html>
-            <head><style>body {{ text-align: right; }}</style></head>
-            <body><p style="text-align: right; margin: 0; white-space: pre-wrap;">{html_content}</p></body>
-            </html>
-            '''
-            self.content_browser.setHtml(full_html)
+            self.content_browser.setHtml(f'''
+                <div style="text-align: left; color: {user_text_color}; white-space: pre-wrap;">
+                {html_content}
+                </div>
+            ''')
+
+            bubble_layout.addWidget(self.content_browser)
+
+            # 设置气泡样式 - 紫色圆角
+            bubble_widget.setStyleSheet(f"""
+                QFrame#userBubble {{
+                    background-color: {user_bubble_bg};
+                    border-radius: 16px;
+                    border-top-right-radius: 4px;
+                }}
+                AutoResizingTextBrowser {{
+                    background-color: transparent;
+                    color: {user_text_color};
+                    border: none;
+                }}
+            """)
+
+            # 设置最大宽度（不超过60%）
+            bubble_widget.setMaximumWidth(500)
+            bubble_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+
+            main_layout.addWidget(bubble_widget)
+
         else:
-            # AI/系统消息：Markdown渲染，左对齐
+            # ========== AI消息：左侧气泡，显示Logo和名字 ==========
+
+            # 头像区域（Logo + 名字竖排）
+            avatar_widget = QWidget()
+            avatar_layout = QVBoxLayout(avatar_widget)
+            avatar_layout.setContentsMargins(0, 0, 0, 0)
+            avatar_layout.setSpacing(2)
+            avatar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+            # Logo图片
+            logo_label = QLabel()
+            logo_pixmap = self._get_logo_pixmap()
+            if not logo_pixmap.isNull():
+                scaled_pixmap = logo_pixmap.scaled(
+                    36, 36,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                logo_label.setPixmap(scaled_pixmap)
+            else:
+                logo_label.setText("🔮")
+                logo_label.setStyleSheet("font-size: 24px;")
+            logo_label.setFixedSize(36, 36)
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            avatar_layout.addWidget(logo_label)
+
+            # 名字
+            name_label = QLabel("赛博玄数")
+            name_label.setStyleSheet(f"""
+                font-size: 9px;
+                color: {ai_text_color if is_dark else '#64748B'};
+                font-weight: 500;
+            """)
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            avatar_layout.addWidget(name_label)
+
+            avatar_widget.setFixedWidth(50)
+            main_layout.addWidget(avatar_widget, alignment=Qt.AlignmentFlag.AlignTop)
+
+            # 气泡容器
+            bubble_widget = QFrame()
+            bubble_widget.setObjectName("aiBubble")
+            bubble_layout = QVBoxLayout(bubble_widget)
+            bubble_layout.setContentsMargins(14, 10, 14, 10)
+            bubble_layout.setSpacing(0)
+
+            # 消息内容
+            self.content_browser = AutoResizingTextBrowser()
+            self.content_browser.setReadOnly(True)
+            self.content_browser.setFrameStyle(QFrame.Shape.NoFrame)
+
+            font = QFont()
+            font.setPointSize(self.font_size)
+            self.content_browser.setFont(font)
+            self.content_browser.document().setDocumentMargin(0)
+
+            # AI消息：Markdown渲染
             if self.animated and self.message.content:
-                # 启动打字机动画
                 self.typewriter = TypewriterAnimation(
                     self.content_browser,
                     self.message.content,
@@ -334,17 +410,32 @@ class ChatBubble(QFrame):
             else:
                 self.content_browser.setMarkdown(self.message.content)
 
-        layout.addWidget(self.content_browser)
+            bubble_layout.addWidget(self.content_browser)
 
-        self.setLayout(layout)
+            # 设置气泡样式 - 白色/深色圆角
+            bubble_widget.setStyleSheet(f"""
+                QFrame#aiBubble {{
+                    background-color: {ai_bubble_bg};
+                    border: 1px solid {ai_border_color};
+                    border-radius: 16px;
+                    border-top-left-radius: 4px;
+                }}
+                AutoResizingTextBrowser {{
+                    background-color: transparent;
+                    color: {ai_text_color};
+                    border: none;
+                }}
+            """)
 
-        # 移除气泡背景，使用简洁样式
-        self.setStyleSheet("""
-            ChatBubble {
-                background-color: transparent;
-                border: none;
-            }
-        """)
+            # 设置最大宽度（不超过70%）
+            bubble_widget.setMaximumWidth(600)
+            bubble_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+
+            main_layout.addWidget(bubble_widget)
+            main_layout.addStretch()  # 右侧弹性空间
+
+        self.setLayout(main_layout)
+        self.setStyleSheet("ChatBubble { background-color: transparent; border: none; }")
 
     def stop_animation(self):
         """停止打字动画，立即显示完整内容"""
@@ -375,8 +466,15 @@ class ChatWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.messages: List[ChatMessage] = []
-        self.font_size: int = 10  # 默认字体大小
+        self.font_size: int = 11  # 默认字体大小
+        self.theme: str = "light"  # 当前主题
         self._setup_ui()
+
+    def set_theme(self, theme: str):
+        """设置主题并刷新所有气泡"""
+        self.theme = theme
+        # 重新创建所有气泡以应用新主题
+        self._refresh_all_bubbles()
 
     def _setup_ui(self):
         """设置UI"""
@@ -438,8 +536,8 @@ class ChatWidget(QWidget):
         message = ChatMessage(role, content)
         self.messages.append(message)
 
-        # 创建气泡，传入当前字体大小和动画设置
-        bubble = ChatBubble(message, self.font_size, animated=animated)
+        # 创建气泡，传入当前字体大小、动画设置和主题
+        bubble = ChatBubble(message, self.font_size, animated=animated, theme=self.theme)
 
         # 插入到布局中（在stretch之前）
         count = self.messages_layout.count()
@@ -448,6 +546,17 @@ class ChatWidget(QWidget):
         # 自动滚动到底部
         if auto_scroll:
             self._scroll_to_bottom()
+
+    def _refresh_all_bubbles(self):
+        """刷新所有气泡以应用新主题"""
+        # 保存当前消息
+        messages_copy = self.messages.copy()
+        # 清空
+        self.clear_messages()
+        # 重新添加
+        for msg in messages_copy:
+            self.add_message(msg.role, msg.content, auto_scroll=False, animated=False)
+        self._scroll_to_bottom()
 
     def add_user_message(self, content: str):
         """添加用户消息"""
@@ -485,8 +594,8 @@ class ChatWidget(QWidget):
         if count > 1:  # 至少有1个widget（bubble）+ 1个stretch
             bubble_widget = self.messages_layout.itemAt(count - 2).widget()
             if isinstance(bubble_widget, ChatBubble):
-                # 重新创建气泡，传入当前字体大小
-                new_bubble = ChatBubble(self.messages[-1], self.font_size)
+                # 重新创建气泡，传入当前字体大小和主题
+                new_bubble = ChatBubble(self.messages[-1], self.font_size, theme=self.theme)
                 self.messages_layout.replaceWidget(bubble_widget, new_bubble)
                 bubble_widget.deleteLater()
                 self._scroll_to_bottom()
@@ -514,7 +623,7 @@ class ChatWidget(QWidget):
         """
         self.clear_messages()
         for msg in messages:
-            self.add_message(msg.role, msg.content, auto_scroll=False)
+            self.add_message(msg.role, msg.content, auto_scroll=False, animated=False)
         self._scroll_to_bottom()
 
     def _scroll_to_bottom(self):
@@ -574,3 +683,12 @@ class ChatWidget(QWidget):
                 bubble = item.widget()
                 if isinstance(bubble, ChatBubble):
                     bubble.update_font_size(font_size)
+
+    def update_theme(self, theme: str):
+        """
+        更新主题（外部调用接口）
+
+        Args:
+            theme: 主题名称 ('light' 或 'dark')
+        """
+        self.set_theme(theme)
