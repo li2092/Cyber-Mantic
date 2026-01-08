@@ -393,7 +393,14 @@ class ConversationService:
         # 记录使用统计
         try:
             stats_manager = get_usage_stats_manager()
-            primary_theory = self.context.selected_theories[0] if self.context.selected_theories else None
+            # 从字典中提取理论名称
+            primary_theory = None
+            if self.context.selected_theories:
+                first_theory = self.context.selected_theories[0]
+                if isinstance(first_theory, dict):
+                    primary_theory = first_theory.get('theory', str(first_theory))
+                else:
+                    primary_theory = str(first_theory)
             stats_manager.record_usage(
                 module='wendao',
                 theory=primary_theory,

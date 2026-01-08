@@ -38,6 +38,8 @@
 | **join(selected_theories)字典列表错误** | `report_generator.py` (5处) | ✅ 已修复 |
 | **join(selected_theories)字典列表错误** | `qa_handler.py` (1处) | ✅ 已修复 |
 | **join(selected_theories)字典列表错误** | `export_service.py` (1处) | ✅ 已修复 |
+| **usage_stats_manager SQLite绑定错误** | `conversation_service.py` | ✅ 已修复 |
+| **保存对话 ComprehensiveReport 初始化错误** | `main_window.py` | ✅ 已修复 |
 
 ### 待测试验证
 

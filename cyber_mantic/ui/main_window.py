@@ -395,16 +395,15 @@ if HAS_PYQT6:
                         confidence=0.70
                     ))
 
-                # 创建报告
-                report = ComprehensiveReport()
-                report.report_id = str(uuid.uuid4())
-                report.created_at = datetime.fromisoformat(conversation_data.get('timestamp', datetime.now().isoformat()))
+                # 准备报告数据
+                report_id = str(uuid.uuid4())
+                created_at = datetime.fromisoformat(conversation_data.get('timestamp', datetime.now().isoformat()))
 
                 # 用户输入摘要 - 智能识别问题类型
                 question_text = context.get('question', context.get('user_input_raw', ''))
                 question_type = classify_question(question_text)
 
-                report.user_input_summary = {
+                user_input_summary = {
                     'question_type': question_type,
                     'question_desc': question_text[:100],
                     'birth_info': context.get('birth_info'),
@@ -412,27 +411,17 @@ if HAS_PYQT6:
                 }
 
                 # 使用的理论
-                report.selected_theories = [r.theory_name for r in theory_results]
-                report.selection_reason = "AI对话模式综合分析"
-
-                # 理论结果
-                report.theory_results = theory_results
+                selected_theories = [r.theory_name for r in theory_results]
 
                 # 冲突信息
-                report.conflict_info = ConflictInfo(
+                conflict_info = ConflictInfo(
                     has_conflict=False,
                     conflicts=[],
                     resolution=None
                 )
 
-                # 综合结论
-                report.executive_summary = context.get('synthesis_result', '综合分析结果')[:500]
-                report.detailed_analysis = context.get('synthesis_result', '基于AI对话的详细分析')
-                report.retrospective_analysis = "AI对话模式：回顾分析详见对话记录"
-                report.predictive_analysis = context.get('synthesis_result', '')
-
                 # 综合建议
-                report.comprehensive_advice = [
+                comprehensive_advice = [
                     {
                         'priority': '高',
                         'category': '综合建议',
@@ -441,12 +430,26 @@ if HAS_PYQT6:
                     }
                 ]
 
-                # 元信息
-                report.overall_confidence = 0.80
-                report.limitations = [
-                    "AI对话模式：分析基于实时交互",
-                    "详细信息请查看完整对话记录"
-                ]
+                # 创建报告（dataclass 需要在构造时提供所有参数）
+                report = ComprehensiveReport(
+                    report_id=report_id,
+                    created_at=created_at,
+                    user_input_summary=user_input_summary,
+                    selected_theories=selected_theories,
+                    selection_reason="AI对话模式综合分析",
+                    theory_results=theory_results,
+                    conflict_info=conflict_info,
+                    executive_summary=context.get('synthesis_result', '综合分析结果')[:500],
+                    detailed_analysis=context.get('synthesis_result', '基于AI对话的详细分析'),
+                    retrospective_analysis="AI对话模式：回顾分析详见对话记录",
+                    predictive_analysis=context.get('synthesis_result', ''),
+                    comprehensive_advice=comprehensive_advice,
+                    overall_confidence=0.80,
+                    limitations=[
+                        "AI对话模式：分析基于实时交互",
+                        "详细信息请查看完整对话记录"
+                    ]
+                )
 
                 # 保存到历史记录
                 self.history_manager.save_report(report)
