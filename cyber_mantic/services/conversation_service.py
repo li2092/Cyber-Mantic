@@ -26,6 +26,8 @@ from theories.ziwei.theory import ZiWeiTheory
 from theories.qimen.theory import QiMenTheory
 from theories.daliuren.theory import DaLiuRenTheory
 from theories.xiaoliu.theory import XiaoLiuRenTheory
+from theories.liuyao.theory import LiuYaoTheory
+from theories.meihua.theory import MeiHuaTheory
 from core.theory_selector import TheorySelector
 from utils.logger import get_logger
 
@@ -609,7 +611,7 @@ class ConversationService:
 
         if "大六壬" in selected_theory_names:
             if progress_callback:
-                progress_callback("六壬", "正在起六壬课...", 96)
+                progress_callback("六壬", "正在起六壬课...", 95)
             if theory_callback:
                 theory_callback('started', '大六壬', None)
             try:
@@ -621,6 +623,36 @@ class ConversationService:
                     })
             except Exception as e:
                 self.logger.error(f"六壬计算失败: {e}")
+
+        if "六爻" in selected_theory_names:
+            if progress_callback:
+                progress_callback("六爻", "正在起六爻卦...", 96)
+            if theory_callback:
+                theory_callback('started', '六爻', None)
+            try:
+                self.context.liuyao_result = LiuYaoTheory().calculate(user_input)
+                if theory_callback:
+                    theory_callback('completed', '六爻', {
+                        'summary': self._get_liuyao_summary(self.context.liuyao_result),
+                        'judgment': self._get_liuyao_judgment(self.context.liuyao_result)
+                    })
+            except Exception as e:
+                self.logger.error(f"六爻计算失败: {e}")
+
+        if "梅花易数" in selected_theory_names:
+            if progress_callback:
+                progress_callback("梅花", "正在起梅花卦...", 97)
+            if theory_callback:
+                theory_callback('started', '梅花易数', None)
+            try:
+                self.context.meihua_result = MeiHuaTheory().calculate(user_input)
+                if theory_callback:
+                    theory_callback('completed', '梅花易数', {
+                        'summary': self._get_meihua_summary(self.context.meihua_result),
+                        'judgment': self._get_meihua_judgment(self.context.meihua_result)
+                    })
+            except Exception as e:
+                self.logger.error(f"梅花易数计算失败: {e}")
 
     def _retry_msg(self, stage: str) -> str:
         """生成重试提示"""
@@ -748,6 +780,51 @@ class ConversationService:
                 return "吉"
             elif '凶' in judgment_text:
                 return "凶"
+        return "平"
+
+    def _get_liuyao_summary(self, result: dict) -> str:
+        """从六爻结果提取摘要"""
+        if not result:
+            return "六爻卦起成"
+        ben_gua = result.get('本卦', {})
+        yong_shen = result.get('用神', {})
+        if ben_gua and yong_shen:
+            gua_name = ben_gua.get('名称', '')
+            liu_qin = yong_shen.get('六亲', '')
+            return f"{gua_name}，用神{liu_qin}"
+        return "六爻卦起成"
+
+    def _get_liuyao_judgment(self, result: dict) -> str:
+        """从六爻结果提取吉凶判断"""
+        if not result:
+            return "平"
+        judgment = result.get('judgment', '')
+        if judgment == '吉':
+            return "吉"
+        elif judgment == '凶':
+            return "凶"
+        return "平"
+
+    def _get_meihua_summary(self, result: dict) -> str:
+        """从梅花易数结果提取摘要"""
+        if not result:
+            return "梅花卦起成"
+        ben_gua = result.get('本卦', {})
+        ti_yong = result.get('体用关系', '')
+        if ben_gua:
+            gua_name = ben_gua.get('名称', '')
+            return f"{gua_name}，{ti_yong}"
+        return "梅花卦起成"
+
+    def _get_meihua_judgment(self, result: dict) -> str:
+        """从梅花易数结果提取吉凶判断"""
+        if not result:
+            return "平"
+        judgment = result.get('judgment', '')
+        if judgment == '吉':
+            return "吉"
+        elif judgment == '凶':
+            return "凶"
         return "平"
 
     def can_skip_to_stage(self, target_stage: ConversationStage) -> bool:

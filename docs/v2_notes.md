@@ -4,6 +4,56 @@
 
 ---
 
+## 阶段二进度记录（2026-01-08）
+
+### 已完成任务
+
+**2.1 Worker信号机制 ✅**
+- ConversationWorker新增信号：
+  - `theory_started(str)` - 理论开始计算
+  - `theory_completed(str, dict)` - 理论完成
+  - `quick_result(str, str, str)` - 快速结果（理论名, 摘要, 吉凶）
+- 新增 `emit_theory_update()` 方法统一处理理论进度事件
+- ConversationService中所有理论计算方法添加 `theory_callback` 参数
+
+**2.2 快速结论卡片交互 ✅**
+- 新增文件 `cyber_mantic/ui/widgets/quick_result_card.py`
+- QuickResultCard组件：
+  - 6种状态：WAITING/RUNNING/COMPLETED_GOOD/COMPLETED_BAD/COMPLETED_NEUTRAL/ERROR
+  - 深色主题配色（与整体UI风格一致）
+  - 点击展开详情功能
+  - 进行中动画（⏳/⌛交替闪烁）
+- QuickResultPanel面板：
+  - 包含7个理论卡片（小六壬、八字、紫微斗数、奇门遁甲、大六壬、六爻、梅花易数）
+  - 统一管理所有卡片状态
+- 集成到AIConversationTab右侧面板
+
+**关键代码位置：**
+- `cyber_mantic/ui/widgets/quick_result_card.py` - 卡片组件
+- `cyber_mantic/ui/tabs/ai_conversation_tab.py:675-685` - 信号处理器
+- `cyber_mantic/services/conversation_service.py:540-624` - 深度分析中的theory_callback调用
+
+**2.3 渐进展示逻辑 ✅**
+- 补充六爻和梅花易数的导入和theory_callback
+- 添加辅助方法：`_get_liuyao_summary`, `_get_liuyao_judgment`, `_get_meihua_summary`, `_get_meihua_judgment`
+
+**2.4 MBTI矩阵数据 ✅**
+- 在`theory_selector.py`添加完整16×8 MBTI适配矩阵（`MBTI_THEORY_MATRIX`）
+- 按4种MBTI组别划分：分析型(NT)、外交型(NF)、守护型(SJ)、探险型(SP)
+- 添加理论匹配说明（`MBTI_THEORY_RATIONALE`）
+
+**2.5 MBTI匹配算法 ✅**
+- 新增`calculate_mbti_matching(mbti_type, theory_name)`方法
+- 替换`calculate_theory_fitness`中的mbti_score = 1.0为实际计算
+- 未提供MBTI时返回中性值0.7
+
+**2.6 MBTI对报告影响 ✅**
+- 在`report_generator.py`添加MBTI表达风格指导（`MBTI_EXPRESSION_STYLES`）
+- 新增`_get_mbti_style_guidance()`方法
+- 在报告prompt中注入MBTI个性化指导，包括沟通风格、内容偏好、表达方式
+
+---
+
 ## 零、阶段一完成记录（2026-01-08）
 
 ### 已完成的文件

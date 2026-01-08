@@ -112,6 +112,33 @@ class ReportGenerator:
             # 返回简化版报告
             return self.generate_simplified_report()
 
+    # MBTI表达风格指导
+    MBTI_EXPRESSION_STYLES = {
+        # 分析型（NT）- 重逻辑，喜欢数据和原理
+        "INTJ": {"风格": "逻辑严密、数据导向", "偏好": "系统分析、长期规划", "表达": "直接简洁，重点突出因果关系"},
+        "INTP": {"风格": "理论深入、探索原理", "偏好": "原理解释、多角度分析", "表达": "可以展开理论推导，但避免空泛"},
+        "ENTJ": {"风格": "结果导向、决策明确", "偏好": "行动建议、效率优先", "表达": "强调可执行性和预期收益"},
+        "ENTP": {"风格": "灵活多变、可能性导向", "偏好": "多种方案、创意建议", "表达": "可以探讨多种可能，但需有主次"},
+
+        # 外交型（NF）- 重感受，关注意义和人文
+        "INFJ": {"风格": "直觉深刻、意义导向", "偏好": "深层含义、人生意义", "表达": "融入哲理思考，关注内心成长"},
+        "INFP": {"风格": "感性细腻、价值导向", "偏好": "情感共鸣、个人价值", "表达": "温和包容，关注内心感受"},
+        "ENFJ": {"风格": "温暖鼓励、关系导向", "偏好": "人际影响、助人建议", "表达": "积极正面，关注对他人的影响"},
+        "ENFP": {"风格": "热情开放、可能性导向", "偏好": "灵感启发、成长机会", "表达": "充满热情，探索成长空间"},
+
+        # 守护型（SJ）- 重传统，喜欢具体和可靠
+        "ISTJ": {"风格": "务实稳健、事实导向", "偏好": "具体步骤、可靠方法", "表达": "条理清晰，提供明确指引"},
+        "ISFJ": {"风格": "细心周到、责任导向", "偏好": "安全建议、风险提示", "表达": "温和稳重，关注安全感"},
+        "ESTJ": {"风格": "效率务实、行动导向", "偏好": "明确计划、时间节点", "表达": "简洁有力，强调行动步骤"},
+        "ESFJ": {"风格": "关怀实际、和谐导向", "偏好": "人际建议、情感支持", "表达": "温暖亲切，关注人际关系"},
+
+        # 探险型（SP）- 重体验，喜欢灵活和当下
+        "ISTP": {"风格": "冷静分析、实用导向", "偏好": "技术分析、实操建议", "表达": "简洁实用，直指要点"},
+        "ISFP": {"风格": "感性直觉、体验导向", "偏好": "感受分享、灵活建议", "表达": "温和自然，尊重个人感受"},
+        "ESTP": {"风格": "直接果断、行动导向", "偏好": "快速建议、即时效果", "表达": "简短有力，强调立即行动"},
+        "ESFP": {"风格": "乐观积极、体验导向", "偏好": "有趣建议、正面反馈", "表达": "活泼积极，强调享受过程"},
+    }
+
     def _build_report_prompt(
         self,
         current_time_display: str,
@@ -119,6 +146,9 @@ class ReportGenerator:
         verification_summary: str
     ) -> str:
         """构建报告生成的AI prompt"""
+        # 获取MBTI个性化指导
+        mbti_style = self._get_mbti_style_guidance()
+
         return f"""你是一位经验丰富的命理分析师。请基于以下信息，生成一份专业的命理分析报告。
 
 【当前时间】：{current_time_display}
@@ -130,6 +160,9 @@ class ReportGenerator:
 - **出生年份**：{self.context.birth_info.get('year') if self.context.birth_info else '未知'}年
 - **性别**：{self.context.gender or '未知'}
 - **MBTI**：{self.context.mbti_type or '未知'}
+
+## 🎯 MBTI个性化表达指导
+{mbti_style}
 
 ## 使用理论
 {', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories])}
@@ -392,6 +425,30 @@ class ReportGenerator:
         if hour is None:
             return "未知"
         return HOUR_CHINESE_NAMES.get(hour, "未知")
+
+    def _get_mbti_style_guidance(self) -> str:
+        """
+        获取MBTI个性化表达指导
+
+        Returns:
+            表达风格指导文本
+        """
+        mbti_type = self.context.mbti_type
+        if not mbti_type:
+            return "用户未提供MBTI，使用标准表达风格，语气专业中性。"
+
+        mbti_type = mbti_type.upper()
+        style_info = self.MBTI_EXPRESSION_STYLES.get(mbti_type)
+
+        if not style_info:
+            return f"用户MBTI类型（{mbti_type}）未知，使用标准表达风格。"
+
+        return f"""用户是**{mbti_type}**类型，请按以下风格调整报告表达：
+- **沟通风格**：{style_info['风格']}
+- **内容偏好**：{style_info['偏好']}
+- **表达方式**：{style_info['表达']}
+
+**重要**：请根据以上MBTI特点调整报告的语气、内容侧重点和建议方式，使报告更贴合用户的认知偏好。"""
 
 
 class ConversationExporter:

@@ -28,6 +28,7 @@ import json
 
 from ui.widgets.chat_widget import ChatWidget
 from ui.widgets.progress_widget import ProgressWidget
+from ui.widgets.quick_result_card import QuickResultPanel
 from services.conversation_service import ConversationService, ConversationStage
 from api.manager import APIManager
 from utils.logger import get_logger
@@ -419,48 +420,22 @@ class AIConversationTab(QWidget):
         xiaoliu_group.setLayout(xiaoliu_layout)
         layout.addWidget(xiaoliu_group)
 
-        # ===== 6个术数理论按钮 =====
-        theory_group = QGroupBox("🔮 理论分析")
-        theory_layout = QVBoxLayout()
+        # ===== V2: 快速结论卡片面板 =====
+        self.quick_result_panel = QuickResultPanel(theme="dark")
+        self.quick_result_panel.theory_clicked.connect(self._show_theory_detail)
+        layout.addWidget(self.quick_result_panel)
 
-        # 按钮网格 (2x3)
-        theory_btn_layout = QHBoxLayout()
-        theory_btn_layout.setSpacing(8)
-
-        # 6个理论按钮 (初始为空，逐个激活)
-        self.theory_buttons = {}
-        theory_names = ["八字", "紫微", "奇门", "六壬", "六爻", "梅花"]
-
-        for i, name in enumerate(theory_names):
-            btn = QPushButton("")  # 初始为空
-            btn.setMinimumHeight(40)
-            btn.setProperty("theory_name", name)
-            btn.setProperty("activated", False)
-            btn.setEnabled(False)
-            btn.setToolTip(f"等待{name}分析...")
-            btn.clicked.connect(lambda checked, n=name: self._show_theory_detail(n))
-            self.theory_buttons[name] = btn
-            theory_btn_layout.addWidget(btn)
-
-            # 每3个按钮换行
-            if i == 2:
-                theory_layout.addLayout(theory_btn_layout)
-                theory_btn_layout = QHBoxLayout()
-                theory_btn_layout.setSpacing(8)
-
-        theory_layout.addLayout(theory_btn_layout)
-
-        # 理论详情显示区
+        # 理论详情显示区（初始隐藏）
         self.theory_detail_text = QTextBrowser()
         self.theory_detail_text.setReadOnly(True)
         self.theory_detail_text.setFrameStyle(QFrame.Shape.NoFrame)
         self.theory_detail_text.setMaximumHeight(150)
-        self.theory_detail_text.setMarkdown("_点击上方按钮查看理论详情_")
-        self.theory_detail_text.hide()  # 初始隐藏
-        theory_layout.addWidget(self.theory_detail_text)
+        self.theory_detail_text.setMarkdown("_点击上方卡片查看理论详情_")
+        self.theory_detail_text.hide()
+        layout.addWidget(self.theory_detail_text)
 
-        theory_group.setLayout(theory_layout)
-        layout.addWidget(theory_group)
+        # 兼容性：保留theory_buttons字典（某些地方可能还在用）
+        self.theory_buttons = {}
 
         # ===== 八字排盘结果组 =====
         bazi_group = QGroupBox("八字命盘")
@@ -551,6 +526,9 @@ class AIConversationTab(QWidget):
         self.status_text.setMarkdown("（等待开始）")
         self.stage_label.setText("等待用户输入...")
         self.save_btn.setEnabled(False)
+        # V2: 重置快速结论面板
+        if hasattr(self, 'quick_result_panel'):
+            self.quick_result_panel.reset_all()
 
         # 启动对话 - 使用is_start=True触发start_conversation
         self.worker = ConversationWorker(
@@ -560,6 +538,9 @@ class AIConversationTab(QWidget):
         )
         self.worker.message_received.connect(self._on_welcome_message)
         self.worker.error.connect(self._on_error)
+        # V2: 连接理论分析信号
+        self.worker.theory_started.connect(self._on_theory_started)
+        self.worker.quick_result.connect(self._on_quick_result)
         self.worker.start()
 
     def _on_welcome_message(self, message: str):
@@ -640,6 +621,9 @@ class AIConversationTab(QWidget):
         self.worker.message_received.connect(self._on_message_received)
         self.worker.progress_updated.connect(self._on_progress_updated)
         self.worker.error.connect(self._on_error)
+        # V2: 连接理论分析信号
+        self.worker.theory_started.connect(self._on_theory_started)
+        self.worker.quick_result.connect(self._on_quick_result)
         self.worker.start()
 
     def _on_message_received(self, message: str):
@@ -687,6 +671,18 @@ class AIConversationTab(QWidget):
         # 右侧面板滚动到顶部，让用户看到最新的进度信息
         if hasattr(self, 'right_panel_scroll_area'):
             self.right_panel_scroll_area.verticalScrollBar().setValue(0)
+
+    def _on_theory_started(self, theory_name: str):
+        """V2: 理论分析开始"""
+        self.logger.debug(f"理论开始: {theory_name}")
+        if hasattr(self, 'quick_result_panel'):
+            self.quick_result_panel.set_theory_running(theory_name)
+
+    def _on_quick_result(self, theory_name: str, summary: str, judgment: str):
+        """V2: 理论快速结果"""
+        self.logger.debug(f"理论完成: {theory_name}, 判断: {judgment}")
+        if hasattr(self, 'quick_result_panel'):
+            self.quick_result_panel.set_theory_completed(theory_name, summary, judgment)
 
     def _on_error(self, error_msg: str):
         """错误处理"""
