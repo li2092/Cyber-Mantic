@@ -19,6 +19,11 @@ from typing import List, Optional
 import os
 import re
 
+# 导入WebEngine组件（如果可用）
+from cyber_mantic.ui.widgets.markdown_webview import (
+    MarkdownWebView, MarkdownTypewriter, is_webengine_available, WEBENGINE_AVAILABLE
+)
+
 
 def escape_html(text: str) -> str:
     """转义HTML特殊字符"""
@@ -370,7 +375,9 @@ class ChatBubble(QFrame):
         self.animated = animated
         self.theme = theme
         self.content_browser = None
+        self.content_webview = None
         self.typewriter = None
+        self.web_typewriter = None
         self._fixed_width = None  # 多行时固定宽度
         self._setup_ui()
 
@@ -514,32 +521,52 @@ class ChatBubble(QFrame):
             bubble_layout.setContentsMargins(12, 8, 12, 8)
             bubble_layout.setSpacing(0)
 
-            # 消息内容
-            self.content_browser = AutoResizingTextBrowser()
-            self.content_browser.setReadOnly(True)
-            self.content_browser.setFrameStyle(QFrame.Shape.NoFrame)
+            # 消息内容 - 优先使用WebEngine获得更好的渲染效果
+            if WEBENGINE_AVAILABLE:
+                self.content_webview = MarkdownWebView(theme=self.theme)
+                self.content_browser = None  # WebEngine模式下不使用TextBrowser
 
-            font = QFont()
-            font.setPointSize(self.font_size)
-            self.content_browser.setFont(font)
-            self.content_browser.document().setDocumentMargin(0)
+                # AI消息：Markdown渲染
+                if self.animated and self.message.content:
+                    self.web_typewriter = MarkdownTypewriter(
+                        self.content_webview,
+                        self.message.content,
+                        char_delay=15,
+                        chunk_size=5
+                    )
+                    self.web_typewriter.start()
+                else:
+                    self.content_webview.set_markdown(self.message.content)
 
-            # AI消息：Markdown渲染
-            if self.animated and self.message.content:
-                self.typewriter = TypewriterAnimation(
-                    self.content_browser,
-                    self.message.content,
-                    is_markdown=True,
-                    char_delay=15,
-                    newline_delay=100
-                )
-                self.typewriter.start()
+                bubble_layout.addWidget(self.content_webview)
             else:
-                # 使用优化的HTML渲染
-                html = markdown_to_styled_html(self.message.content)
-                self.content_browser.setHtml(html)
+                # 回退到QTextBrowser
+                self.content_webview = None
+                self.content_browser = AutoResizingTextBrowser()
+                self.content_browser.setReadOnly(True)
+                self.content_browser.setFrameStyle(QFrame.Shape.NoFrame)
 
-            bubble_layout.addWidget(self.content_browser)
+                font = QFont()
+                font.setPointSize(self.font_size)
+                self.content_browser.setFont(font)
+                self.content_browser.document().setDocumentMargin(0)
+
+                # AI消息：Markdown渲染
+                if self.animated and self.message.content:
+                    self.typewriter = TypewriterAnimation(
+                        self.content_browser,
+                        self.message.content,
+                        is_markdown=True,
+                        char_delay=15,
+                        newline_delay=100
+                    )
+                    self.typewriter.start()
+                else:
+                    # 使用优化的HTML渲染
+                    html = markdown_to_styled_html(self.message.content)
+                    self.content_browser.setHtml(html)
+
+                bubble_layout.addWidget(self.content_browser)
 
             # 设置气泡样式 - 白色/深色圆角
             bubble_widget.setStyleSheet(f"""
@@ -572,10 +599,16 @@ class ChatBubble(QFrame):
         """停止打字动画，立即显示完整内容"""
         if self.typewriter and self.typewriter.is_running():
             self.typewriter.stop()
+        if self.web_typewriter and self.web_typewriter.is_running():
+            self.web_typewriter.stop()
 
     def is_animating(self) -> bool:
         """检查是否正在播放动画"""
-        return self.typewriter is not None and self.typewriter.is_running()
+        if self.typewriter is not None and self.typewriter.is_running():
+            return True
+        if self.web_typewriter is not None and self.web_typewriter.is_running():
+            return True
+        return False
 
     def update_font_size(self, font_size: int):
         """更新字体大小"""
