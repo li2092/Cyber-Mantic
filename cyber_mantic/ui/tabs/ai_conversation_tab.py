@@ -283,8 +283,8 @@ class AIConversationTab(QWidget):
         input_container.setObjectName("inputContainer")
         input_container.setStyleSheet("""
             QFrame#inputContainer {
-                background-color: rgba(30, 41, 59, 0.5);
-                border-top: 1px solid rgba(148, 163, 184, 0.1);
+                background-color: #1E1E2E;
+                border-top: 1px solid rgba(99, 102, 241, 0.15);
             }
         """)
         input_main_layout = QVBoxLayout(input_container)
@@ -301,8 +301,8 @@ class AIConversationTab(QWidget):
         self.input_text.setMaximumHeight(120)
         self.input_text.setStyleSheet("""
             QTextEdit {
-                background-color: rgba(15, 23, 42, 0.6);
-                border: 1px solid rgba(148, 163, 184, 0.2);
+                background-color: #2D2D3D;
+                border: 1px solid rgba(99, 102, 241, 0.3);
                 border-radius: 12px;
                 padding: 12px 16px;
                 color: #F1F5F9;
@@ -310,6 +310,7 @@ class AIConversationTab(QWidget):
             }
             QTextEdit:focus {
                 border-color: #6366F1;
+                background-color: #33334D;
             }
         """)
         input_row.addWidget(self.input_text)

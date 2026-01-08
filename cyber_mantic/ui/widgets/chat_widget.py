@@ -130,17 +130,21 @@ class ChatMessage:
 
 
 class TypewriterAnimation:
-    """打字机动画控制器 - 平滑逐字显示，避免文字跳动"""
+    """打字机动画控制器 - 平滑逐字显示，避免文字跳动
+
+    核心优化：打字过程中使用纯文本显示，避免Markdown重新渲染导致的跳动
+    只在动画结束后渲染完整Markdown
+    """
 
     def __init__(self, text_browser, content: str, is_markdown: bool = True,
-                 char_delay: int = 15, newline_delay: int = 150, chunk_size: int = 3):
+                 char_delay: int = 12, newline_delay: int = 80, chunk_size: int = 5):
         """
         初始化打字机动画
 
         Args:
             text_browser: 要显示内容的TextBrowser (AutoResizingTextBrowser)
             content: 要显示的完整内容
-            is_markdown: 是否为Markdown格式
+            is_markdown: 是否为Markdown格式（最终渲染时使用）
             char_delay: 每组字符的延迟（毫秒）
             newline_delay: 换行时的额外延迟（毫秒）
             chunk_size: 每次显示的字符数（减少渲染频率）
@@ -155,15 +159,24 @@ class TypewriterAnimation:
         self.timer = QTimer()
         self.timer.timeout.connect(self._type_next_chunk)
         self._is_running = False
+        self._fixed_width = None  # 固定宽度，避免跳动
 
     def start(self):
         """开始打字动画"""
         self._is_running = True
         self.current_index = 0
         self.text_browser.clear()
+
         # 启用打字模式，减少高度调整频率
         if hasattr(self.text_browser, 'set_typing_mode'):
             self.text_browser.set_typing_mode(True)
+
+        # 固定文本区域宽度，避免打字过程中宽度变化
+        if self.text_browser.width() > 0:
+            self._fixed_width = self.text_browser.width()
+            self.text_browser.setFixedWidth(self._fixed_width)
+            self.text_browser.document().setTextWidth(self._fixed_width - 24)
+
         self.timer.start(self.char_delay)
 
     def stop(self):
@@ -173,7 +186,16 @@ class TypewriterAnimation:
         # 关闭打字模式
         if hasattr(self.text_browser, 'set_typing_mode'):
             self.text_browser.set_typing_mode(False)
+        # 解除宽度固定
+        self._release_fixed_width()
         self._show_full_content()
+
+    def _release_fixed_width(self):
+        """解除固定宽度"""
+        if self._fixed_width:
+            self.text_browser.setMinimumWidth(0)
+            self.text_browser.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
+            self._fixed_width = None
 
     def _type_next_chunk(self):
         """显示下一组字符"""
@@ -183,6 +205,8 @@ class TypewriterAnimation:
             # 关闭打字模式
             if hasattr(self.text_browser, 'set_typing_mode'):
                 self.text_browser.set_typing_mode(False)
+            # 解除宽度固定
+            self._release_fixed_width()
             # 最终渲染完整Markdown
             self._show_full_content()
             return
@@ -201,14 +225,18 @@ class TypewriterAnimation:
 
         self.current_index = next_index
 
-        # 显示当前已输入的内容
+        # 显示当前已输入的内容 - 使用纯文本HTML，避免Markdown渲染跳动
         current_text = self.full_content[:self.current_index]
-        if self.is_markdown:
-            self.text_browser.setMarkdown(current_text)
-        else:
-            escaped = current_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            html = escaped.replace('\n', '<br>')
-            self.text_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html}</div>')
+        # 转义HTML特殊字符
+        escaped = current_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        # 保留换行
+        html = escaped.replace('\n', '<br>')
+        # 使用pre-wrap保持空格和换行
+        self.text_browser.setHtml(f'''
+            <div style="white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">
+                {html}<span style="opacity: 0.5;">▋</span>
+            </div>
+        ''')
 
         # 如果遇到换行符，增加延迟
         if has_newline:
@@ -217,13 +245,13 @@ class TypewriterAnimation:
             self.timer.setInterval(self.char_delay)
 
     def _show_full_content(self):
-        """显示完整内容"""
+        """显示完整内容（Markdown渲染）"""
         if self.is_markdown:
             self.text_browser.setMarkdown(self.full_content)
         else:
             escaped = self.full_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             html = escaped.replace('\n', '<br>')
-            self.text_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html}</div>')
+            self.text_browser.setHtml(f'<div style="white-space: pre-wrap;">{html}</div>')
 
     def is_running(self) -> bool:
         """返回动画是否正在运行"""
@@ -282,11 +310,12 @@ class ChatBubble(QFrame):
         ai_bubble_bg = "#FFFFFF" if not is_dark else "#2D2D3A"
         ai_text_color = "#1E293B" if not is_dark else "#F1F5F9"
         ai_border_color = "#E2E8F0" if not is_dark else "#3D3D4A"
+        ai_name_color = "#64748B" if not is_dark else "#94A3B8"
 
         # 主布局
         main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(16, 6, 16, 6)  # 左右留空16px
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(16, 4, 16, 4)  # 减少上下边距
+        main_layout.setSpacing(0)
 
         if self.message.role == MessageRole.USER:
             # ========== 用户消息：右侧紫色气泡，不显示头像 ==========
@@ -296,7 +325,7 @@ class ChatBubble(QFrame):
             bubble_widget = QFrame()
             bubble_widget.setObjectName("userBubble")
             bubble_layout = QVBoxLayout(bubble_widget)
-            bubble_layout.setContentsMargins(14, 10, 14, 10)
+            bubble_layout.setContentsMargins(12, 8, 12, 8)  # 减少内边距
             bubble_layout.setSpacing(0)
 
             # 消息内容
@@ -309,14 +338,10 @@ class ChatBubble(QFrame):
             self.content_browser.setFont(font)
             self.content_browser.document().setDocumentMargin(0)
 
-            # 用户消息纯文本，右对齐
+            # 用户消息纯文本 - 文字左对齐
             escaped_content = self.message.content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             html_content = escaped_content.replace('\n', '<br>')
-            self.content_browser.setHtml(f'''
-                <div style="text-align: left; color: {user_text_color}; white-space: pre-wrap;">
-                {html_content}
-                </div>
-            ''')
+            self.content_browser.setHtml(f'''<p style="margin:0; padding:0; color:{user_text_color};">{html_content}</p>''')
 
             bubble_layout.addWidget(self.content_browser)
 
@@ -341,50 +366,55 @@ class ChatBubble(QFrame):
             main_layout.addWidget(bubble_widget)
 
         else:
-            # ========== AI消息：左侧气泡，显示Logo和名字 ==========
+            # ========== AI消息：左侧气泡，Logo和名字在气泡上方 ==========
 
-            # 头像区域（Logo + 名字竖排）
-            avatar_widget = QWidget()
-            avatar_layout = QVBoxLayout(avatar_widget)
-            avatar_layout.setContentsMargins(0, 0, 0, 0)
-            avatar_layout.setSpacing(2)
-            avatar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            # 整体容器（垂直布局：头部 + 气泡）
+            ai_container = QWidget()
+            ai_main_layout = QVBoxLayout(ai_container)
+            ai_main_layout.setContentsMargins(0, 0, 0, 0)
+            ai_main_layout.setSpacing(4)
 
-            # Logo图片
+            # 头部区域（Logo + 名字 横排）
+            header_widget = QWidget()
+            header_layout = QHBoxLayout(header_widget)
+            header_layout.setContentsMargins(0, 0, 0, 0)
+            header_layout.setSpacing(6)
+            header_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+            # Logo图片（小一点）
             logo_label = QLabel()
             logo_pixmap = self._get_logo_pixmap()
             if not logo_pixmap.isNull():
                 scaled_pixmap = logo_pixmap.scaled(
-                    36, 36,
+                    24, 24,  # 更小的Logo
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
                 logo_label.setPixmap(scaled_pixmap)
             else:
                 logo_label.setText("🔮")
-                logo_label.setStyleSheet("font-size: 24px;")
-            logo_label.setFixedSize(36, 36)
+                logo_label.setStyleSheet("font-size: 16px;")
+            logo_label.setFixedSize(24, 24)
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            avatar_layout.addWidget(logo_label)
+            header_layout.addWidget(logo_label)
 
             # 名字
             name_label = QLabel("赛博玄数")
             name_label.setStyleSheet(f"""
-                font-size: 9px;
-                color: {ai_text_color if is_dark else '#64748B'};
+                font-size: 11px;
+                color: {ai_name_color};
                 font-weight: 500;
             """)
-            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            avatar_layout.addWidget(name_label)
+            header_layout.addWidget(name_label)
+            header_layout.addStretch()
 
-            avatar_widget.setFixedWidth(50)
-            main_layout.addWidget(avatar_widget, alignment=Qt.AlignmentFlag.AlignTop)
+            ai_main_layout.addWidget(header_widget)
 
             # 气泡容器
             bubble_widget = QFrame()
             bubble_widget.setObjectName("aiBubble")
             bubble_layout = QVBoxLayout(bubble_widget)
-            bubble_layout.setContentsMargins(14, 10, 14, 10)
+            bubble_layout.setContentsMargins(12, 8, 12, 8)
             bubble_layout.setSpacing(0)
 
             # 消息内容
@@ -403,8 +433,8 @@ class ChatBubble(QFrame):
                     self.content_browser,
                     self.message.content,
                     is_markdown=True,
-                    char_delay=20,
-                    newline_delay=200
+                    char_delay=15,
+                    newline_delay=100
                 )
                 self.typewriter.start()
             else:
@@ -431,7 +461,9 @@ class ChatBubble(QFrame):
             bubble_widget.setMaximumWidth(600)
             bubble_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
 
-            main_layout.addWidget(bubble_widget)
+            ai_main_layout.addWidget(bubble_widget)
+
+            main_layout.addWidget(ai_container)
             main_layout.addStretch()  # 右侧弹性空间
 
         self.setLayout(main_layout)

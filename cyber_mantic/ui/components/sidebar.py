@@ -170,15 +170,15 @@ class SidebarWidget(QWidget):
 
         layout.addLayout(content_layout)
 
-        # 收起/展开按钮
+        # 收起/展开按钮（汉堡菜单样式）
         toggle_layout = QHBoxLayout()
         toggle_layout.addStretch()
 
-        self.toggle_btn = QPushButton("◀")
-        self.toggle_btn.setFixedSize(24, 24)
+        self.toggle_btn = QPushButton("☰")  # 汉堡菜单图标
+        self.toggle_btn.setFixedSize(28, 28)
         self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.toggle_btn.clicked.connect(self._toggle_expand)
-        self.toggle_btn.setToolTip("收起/展开")
+        self.toggle_btn.setToolTip("收起/展开侧边栏")
         toggle_layout.addWidget(self.toggle_btn)
 
         layout.addLayout(toggle_layout)
@@ -241,9 +241,10 @@ class SidebarWidget(QWidget):
             QPushButton {{
                 background-color: {toggle_bg};
                 border: none;
-                border-radius: 12px;
+                border-radius: 6px;
                 color: {text_secondary};
-                font-size: 10px;
+                font-size: 16px;
+                font-weight: bold;
             }}
             QPushButton:hover {{
                 background-color: {toggle_hover};
@@ -261,12 +262,12 @@ class SidebarWidget(QWidget):
 
         if self.is_expanded:
             self.setFixedWidth(self.EXPANDED_WIDTH)
-            self.toggle_btn.setText("◀")
             self.name_widget.show()
         else:
             self.setFixedWidth(self.COLLAPSED_WIDTH)
-            self.toggle_btn.setText("▶")
             self.name_widget.hide()
+
+        # 汉堡菜单图标保持不变（☰）
 
         # 更新所有导航项
         for nav_item in self.nav_items.values():
