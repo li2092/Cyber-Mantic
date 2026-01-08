@@ -128,17 +128,27 @@ class APIManager:
         """
         根据任务类型获取推荐的API
 
+        优先级：
+        1. 用户设置的 primary_api（如果可用）
+        2. API_USAGE_MAP 中的推荐（如果可用）
+        3. 第一个可用的API
+
         Args:
             task_type: 任务类型
 
         Returns:
             推荐的API名称
         """
-        recommended = self.API_USAGE_MAP.get(task_type, self.primary_api)
-        # 确保推荐的API可用
-        if recommended in self.available_apis:
+        # 优先使用用户设置的 primary_api
+        if self.primary_api in self.available_apis:
+            return self.primary_api
+
+        # 其次使用任务类型映射的推荐
+        recommended = self.API_USAGE_MAP.get(task_type)
+        if recommended and recommended in self.available_apis:
             return recommended
-        # 如果不可用，返回第一个可用的API
+
+        # 最后返回第一个可用的API
         return self.available_apis[0] if self.available_apis else None
 
     async def call_api(

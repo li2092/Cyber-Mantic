@@ -46,10 +46,19 @@ class ConversationWorker(QThread):
         self.service = service
         self.user_message = user_message
         self.is_start = is_start
+        self._is_cancelled = False  # 取消标志
+
+    def cancel(self):
+        """取消任务"""
+        self._is_cancelled = True
 
     def run(self):
         """执行异步对话"""
         try:
+            # 检查是否已取消
+            if self._is_cancelled:
+                return
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
@@ -70,10 +79,15 @@ class ConversationWorker(QThread):
 
             loop.close()
 
+            # 检查是否已取消
+            if self._is_cancelled:
+                return
+
             self.message_received.emit(response)
 
         except Exception as e:
-            self.error.emit(str(e))
+            if not self._is_cancelled:
+                self.error.emit(str(e))
 
     def emit_progress(self, stage: str, message: str, progress: int):
         """发送进度信号"""
@@ -91,6 +105,7 @@ class AIConversationTab(QWidget):
         self.api_manager = api_manager
         self.conversation_service = ConversationService(api_manager)
         self.logger = get_logger(__name__)
+        self.worker = None  # 当前工作线程
         self._setup_ui()
         self._start_new_conversation()
 
@@ -361,6 +376,9 @@ class AIConversationTab(QWidget):
         """开始新对话"""
         self.logger.info("开始新的AI对话会话")
 
+        # 停止当前正在运行的工作线程
+        self._stop_current_worker()
+
         # 重置服务
         self.conversation_service.reset()
 
@@ -452,6 +470,9 @@ class AIConversationTab(QWidget):
         if self.conversation_service.context.stage in analysis_stages:
             self.progress_widget.show()
             self.progress_widget.reset()
+
+        # 停止当前正在运行的工作线程（防止重复发送）
+        self._stop_current_worker()
 
         # 启动异步处理
         self.worker = ConversationWorker(self.conversation_service, user_message)
@@ -816,3 +837,25 @@ class AIConversationTab(QWidget):
             self.xiaoliu_text.setMarkdown(xiaoliu_md)
         else:
             self.xiaoliu_text.setMarkdown("_等待起卦..._")
+
+    def _stop_current_worker(self):
+        """停止当前正在运行的工作线程"""
+        if self.worker is not None and self.worker.isRunning():
+            self.logger.debug("正在停止当前工作线程...")
+            self.worker.cancel()
+            # 断开信号连接，防止后续触发
+            try:
+                self.worker.message_received.disconnect()
+                self.worker.progress_updated.disconnect()
+                self.worker.error.disconnect()
+            except TypeError:
+                pass  # 信号未连接时忽略
+            # 等待线程结束（最多2秒）
+            if not self.worker.wait(2000):
+                self.logger.warning("工作线程未能在2秒内结束")
+            self.worker = None
+
+    def cleanup(self):
+        """清理资源（窗口关闭时调用）"""
+        self.logger.debug("AIConversationTab 清理资源")
+        self._stop_current_worker()
