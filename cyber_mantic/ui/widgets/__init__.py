@@ -12,6 +12,12 @@ from .verification_widget import (
     VerificationBubble,
     SingleQuestionWidget
 )
+from .api_settings_widget import (
+    APISettingsWidget,
+    GlobalAPISettings,
+    TaskAPISettings,
+    APIKeySettings
+)
 
 __all__ = [
     'ChatWidget',
@@ -24,4 +30,8 @@ __all__ = [
     'VerificationPanel',
     'VerificationBubble',
     'SingleQuestionWidget',
+    'APISettingsWidget',
+    'GlobalAPISettings',
+    'TaskAPISettings',
+    'APIKeySettings',
 ]
