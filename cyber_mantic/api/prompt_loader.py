@@ -2,7 +2,7 @@
 Prompt加载器 - 从Markdown文件加载Prompt模板
 
 功能：
-- 从 docs/prompts/ 目录加载Prompt模板
+- 从 prompts/ 目录加载Prompt模板
 - 支持 {{variable}} 语法的变量替换
 - 支持A/B测试变体
 - 缓存机制提高性能
@@ -17,7 +17,7 @@ from utils.logger import get_logger
 
 
 # 默认Prompts目录路径
-DEFAULT_PROMPTS_DIR = Path(__file__).parent.parent.parent / "docs" / "prompts"
+DEFAULT_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 
 class PromptLoader:

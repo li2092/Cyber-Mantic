@@ -175,8 +175,8 @@ class FirstLaunchDisclaimerDialog(QDialog):
 
     def _show_full_disclaimer(self):
         """显示完整免责声明"""
-        # 尝试读取完整协议文件
-        legal_path = Path(__file__).parent.parent.parent.parent / "docs" / "legal" / "disclaimer_zh_CN.md"
+        # 尝试读取完整协议文件 (legal/目录已移至cyber_mantic/下)
+        legal_path = Path(__file__).parent.parent.parent / "legal" / "disclaimer_zh_CN.md"
 
         if legal_path.exists():
             with open(legal_path, 'r', encoding='utf-8') as f:

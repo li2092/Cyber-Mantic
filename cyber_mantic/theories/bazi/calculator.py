@@ -276,9 +276,9 @@ class BaZiCalculator:
         wuxing_count = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
 
         for gan, zhi in pillars:
-            if gan:
+            if gan and gan in TIAN_GAN_WUXING:
                 wuxing_count[TIAN_GAN_WUXING[gan]] += 1
-            if zhi:
+            if zhi and zhi in DI_ZHI_WUXING:
                 wuxing_count[DI_ZHI_WUXING[zhi]] += 1
 
         # 找出最旺和最弱

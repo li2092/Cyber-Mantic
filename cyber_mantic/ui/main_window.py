@@ -7,11 +7,11 @@ PyQt6主窗口 - 支持分析、设置、历史记录
 """
 try:
     from PyQt6.QtWidgets import (
-        QMainWindow, QWidget, QVBoxLayout,
+        QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFrame,
         QLabel, QTabWidget, QMessageBox
     )
     from PyQt6.QtCore import Qt
-    from PyQt6.QtGui import QFont, QIcon
+    from PyQt6.QtGui import QFont, QIcon, QPixmap
     HAS_PYQT6 = True
 except ImportError:
     HAS_PYQT6 = False
@@ -138,7 +138,7 @@ if HAS_PYQT6:
             # 标题
             title_label = QLabel("赛博玄数 - 多理论术数智能分析系统")
             title_font = QFont()
-            title_font.setPointSize(16)
+            title_font.setPointSize(20)
             title_font.setBold(True)
             title_label.setFont(title_font)
             title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -272,10 +272,16 @@ if HAS_PYQT6:
                     self.analysis_tab.analysis_service = self.analysis_service
                 if self.ai_conversation_tab:
                     self.ai_conversation_tab.api_manager = self.api_manager
-                    # 同时更新 conversation_service，确保使用新的 api_manager 配置
+                    # 同时更新conversation_service，因为它内部也使用api_manager
                     self.ai_conversation_tab.conversation_service = ConversationService(self.api_manager)
+                # 更新典籍标签页的api_manager
+                if self.library_tab:
+                    self.library_tab.api_manager = self.api_manager
+                # 更新洞察标签页的api_manager
+                if self.insight_tab:
+                    self.insight_tab.api_manager = self.api_manager
 
-                self.logger.info(f"配置已重新加载，优先API: {self.api_manager.primary_api}")
+                self.logger.info("配置已重新加载，服务层已更新")
             except Exception as e:
                 self.error_handler.handle_error(e, "重新加载配置")
 
@@ -569,7 +575,8 @@ def _run_cli_fallback():
     提供交互式命令行界面进行分析
     """
     import sys
-    sys.path.insert(0, str(__file__).rsplit('/', 2)[0])  # 添加项目根目录
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))  # 添加项目根目录
 
     try:
         from main import interactive_mode

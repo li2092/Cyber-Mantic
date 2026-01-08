@@ -200,13 +200,10 @@ class ReportGenerator:
 
         # 小六壬结果
         if self.context.xiaoliu_result:
-            xiaoliu_result = self.context.xiaoliu_result
-            judgment = xiaoliu_result.get('judgment', xiaoliu_result.get('吉凶判断', '未知'))
-            position = xiaoliu_result.get('时落宫', xiaoliu_result.get('最终落宫', '未知'))
             xiaoliu_summary = f"""
 **小六壬快判**：
-- 吉凶：{judgment}
-- 时落宫：{position}
+- 吉凶：{self.context.xiaoliu_result.get('吉凶判断', '未知')}
+- 时落宫：{self.context.xiaoliu_result.get('时落宫', '未知')}
 """
             summary += xiaoliu_summary
 
@@ -229,30 +226,21 @@ class ReportGenerator:
 
         # 奇门遁甲结果
         if self.context.qimen_result:
-            # 格局是一个列表，需要格式化
-            patterns = self.context.qimen_result.get('格局', [])
-            pattern_str = '、'.join([p.get('格局', '') for p in patterns]) if patterns else '未知'
             qimen_summary = f"""
 **奇门遁甲**：
-- 值符宫：{self.context.qimen_result.get('值符宫', '未知')}
+- 值符：{self.context.qimen_result.get('值符', '未知')}
 - 用神宫位：{self.context.qimen_result.get('用神宫位', '未知')}
-- 格局：{pattern_str}
+- 格局：{self.context.qimen_result.get('格局', '未知')}
 """
             summary += qimen_summary
 
         # 大六壬结果
         if self.context.liuren_result:
-            # 课体是一个字典，需要提取名称
-            ke_ti = self.context.liuren_result.get('课体', {})
-            ke_ti_name = ke_ti.get('名称', '未知') if isinstance(ke_ti, dict) else str(ke_ti)
-            # 三传是一个列表，需要格式化
-            san_chuan = self.context.liuren_result.get('三传', [])
-            san_chuan_str = '→'.join([s.get('地支', '') for s in san_chuan]) if san_chuan else '未知'
             liuren_summary = f"""
 **大六壬**：
-- 课体：{ke_ti_name}
-- 三传：{san_chuan_str}
-- 吉凶：{self.context.liuren_result.get('吉凶判断', '未知')}
+- 课体：{self.context.liuren_result.get('课体', '未知')}
+- 三传：{self.context.liuren_result.get('三传', '未知')}
+- 吉凶：{self.context.liuren_result.get('吉凶', '未知')}
 """
             summary += liuren_summary
 

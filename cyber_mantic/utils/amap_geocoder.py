@@ -16,9 +16,19 @@ class AmapGeocoder:
         初始化地理编码器
 
         Args:
-            api_key: 高德地图API密钥，如果不提供则从环境变量读取
+            api_key: 高德地图API密钥，如果不提供则从配置或环境变量读取
         """
-        self.api_key = api_key or os.getenv("AMAP_API_KEY", "")
+        # 优先级：传入参数 > 用户配置 > 环境变量
+        if api_key:
+            self.api_key = api_key
+        else:
+            # 尝试从配置管理器读取
+            try:
+                from utils.config_manager import get_config_manager
+                config_manager = get_config_manager()
+                self.api_key = config_manager.get('api.amap_api_key', '') or os.getenv("AMAP_API_KEY", "")
+            except Exception:
+                self.api_key = os.getenv("AMAP_API_KEY", "")
         self.base_url = "https://restapi.amap.com/v3/geocode/geo"
         self.timeout = 5  # 超时时间（秒）
 
@@ -164,12 +174,23 @@ class AmapGeocoder:
 _geocoder = None
 
 
-def get_geocoder() -> AmapGeocoder:
-    """获取全局地理编码器实例"""
+def get_geocoder(force_refresh: bool = False) -> AmapGeocoder:
+    """
+    获取全局地理编码器实例
+
+    Args:
+        force_refresh: 是否强制刷新实例（配置更改后需要）
+    """
     global _geocoder
-    if _geocoder is None:
+    if _geocoder is None or force_refresh:
         _geocoder = AmapGeocoder()
     return _geocoder
+
+
+def refresh_geocoder():
+    """刷新地理编码器实例（配置更改后调用）"""
+    global _geocoder
+    _geocoder = AmapGeocoder()
 
 
 def geocode_address(address: str, city: Optional[str] = None) -> Optional[Dict[str, Any]]:

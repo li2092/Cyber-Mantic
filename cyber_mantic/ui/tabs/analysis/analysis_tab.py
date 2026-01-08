@@ -85,12 +85,12 @@ class AnalysisTab(QWidget):
         content_layout.addStretch()
 
         # 滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(content_widget)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-        main_layout.addWidget(scroll_area, 1)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidget(content_widget)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        main_layout.addWidget(self.scroll_area, 1)
 
         # 底部按钮
         self._create_action_bar(main_layout)
@@ -373,6 +373,10 @@ class AnalysisTab(QWidget):
         if hasattr(self, 'export_btn'):
             self.export_btn.set_report(report)
 
+        # 滚动到顶部
+        if hasattr(self, 'scroll_area'):
+            self.scroll_area.verticalScrollBar().setValue(0)
+
         self.update()
         self.repaint()
 
@@ -380,18 +384,10 @@ class AnalysisTab(QWidget):
         """清理资源"""
         if self.worker:
             try:
-                # 先停止线程
-                if self.worker.isRunning():
-                    self.worker.quit()
-                    if not self.worker.wait(2000):  # 等待最多2秒
-                        self.logger.warning("AnalysisWorker线程未能正常退出，强制终止")
-                        self.worker.terminate()
-                        self.worker.wait()
-                # 然后断开信号
                 self.worker.progress.disconnect()
                 self.worker.finished.disconnect()
                 self.worker.error.disconnect()
             except Exception as e:
-                self.logger.debug(f"清理worker失败: {e}")
+                self.logger.debug(f"清理worker信号失败: {e}")
 
         self.input_panel.cleanup()

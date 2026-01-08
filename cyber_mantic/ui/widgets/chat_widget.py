@@ -16,7 +16,7 @@ from typing import List, Optional
 
 
 class AutoResizingTextBrowser(QTextBrowser):
-    """自动根据内容调整高度的TextBrowser"""
+    """自动根据内容调整高度的TextBrowser - 禁用内部滚动，让父级ScrollArea处理滚动"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,6 +40,14 @@ class AutoResizingTextBrowser(QTextBrowser):
         """返回建议的大小"""
         doc_height = self.document().size().height()
         return QSize(self.width(), int(doc_height + 30))
+
+    def wheelEvent(self, event):
+        """
+        拦截滚轮事件，转发给父级ScrollArea处理
+        这样用户在消息气泡上滚动鼠标时，会滚动整个对话区域而不是单个消息
+        """
+        # 忽略事件，让它传递给父级widget处理
+        event.ignore()
 
 
 class MessageRole(Enum):

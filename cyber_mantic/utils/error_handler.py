@@ -30,7 +30,7 @@ class ErrorHandler:
     def __init__(self, parent: Optional['QWidget'] = None):
         self.parent = parent if HAS_PYQT6 else None
         self.logger = get_logger(__name__)
-        self.contact_info = "GitHub Issues: https://github.com/your-repo/issues"
+        self.contact_info = "GitHub Issues: https://github.com/cyber-mantic/cyber-mantic/issues"
 
     def handle_error(
         self,
