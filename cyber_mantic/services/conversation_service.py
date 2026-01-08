@@ -477,16 +477,29 @@ class ConversationService:
         )
         selected, _ = self.theory_selector.select_theories(user_input, max_theories=6, min_theories=3)
         self.context.selected_theories = selected
-        return "\n".join([f"{i}. **{t}**" for i, t in enumerate(selected, 1)])
+
+        # 格式化理论列表（支持字典列表和字符串列表）
+        theory_lines = []
+        for i, t in enumerate(selected, 1):
+            if isinstance(t, dict):
+                theory_lines.append(f"{i}. **{t}**")
+            else:
+                theory_lines.append(f"{i}. **{t}**")
+        return "\n".join(theory_lines)
 
     def _adjust_confidence(self, feedback: Dict[str, Any]):
         """调整理论置信度"""
-        match_count = feedback.get("match_count", 0)
-        total = feedback.get("total_count", 1)
-        accuracy = match_count / total if total > 0 else 0
-        adj = 1.1 if accuracy >= 0.8 else (1.0 if accuracy >= 0.5 else 0.9)
-        for theory in self.context.selected_theories:
-            self.context.theory_confidence_adjustment[theory] = adj
+        # 使用 accuracy_score 字段（0-1之间）
+        accuracy_score = feedback.get("accuracy_score", 0.5)
+        adj = 1.1 if accuracy_score >= 0.8 else (1.0 if accuracy_score >= 0.5 else 0.9)
+
+        for theory_item in self.context.selected_theories:
+            # selected_theories 可能是字典列表或字符串列表
+            if isinstance(theory_item, dict):
+                theory_name = theory_item.get('theory', str(theory_item))
+            else:
+                theory_name = str(theory_item)
+            self.context.theory_confidence_adjustment[theory_name] = adj
 
     async def _run_deep_analysis(self, progress_callback):
         """执行深度分析"""
