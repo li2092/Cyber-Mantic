@@ -22,6 +22,7 @@ from datetime import datetime
 from api.manager import APIManager
 from models import UserInput
 from theories.bazi.theory import BaZiTheory
+from theories.ziwei.theory import ZiWeiTheory
 from theories.qimen.theory import QiMenTheory
 from theories.daliuren.theory import DaLiuRenTheory
 from theories.xiaoliu.theory import XiaoLiuRenTheory
@@ -482,7 +483,10 @@ class ConversationService:
         theory_lines = []
         for i, t in enumerate(selected, 1):
             if isinstance(t, dict):
-                theory_lines.append(f"{i}. **{t}**")
+                theory_name = t.get('theory', '未知')
+                fitness = t.get('fitness', 0)
+                info_comp = t.get('info_completeness', 0)
+                theory_lines.append(f"{i}. **{theory_name}** (适配度: {fitness:.0%}, 信息完备度: {info_comp:.0%})")
             else:
                 theory_lines.append(f"{i}. **{t}**")
         return "\n".join(theory_lines)
@@ -518,15 +522,31 @@ class ConversationService:
             current_time=datetime.now()
         )
 
-        if "八字" in self.context.selected_theories:
+        # 提取理论名称列表（支持字典列表和字符串列表）
+        selected_theory_names = []
+        for t in self.context.selected_theories:
+            if isinstance(t, dict):
+                selected_theory_names.append(t.get('theory', ''))
+            else:
+                selected_theory_names.append(str(t))
+
+        if "八字" in selected_theory_names:
             if progress_callback:
-                progress_callback("八字", "正在计算八字命盘...", 92)
+                progress_callback("八字", "正在计算八字命盘...", 91)
             try:
                 self.context.bazi_result = BaZiTheory().calculate(user_input)
             except Exception as e:
                 self.logger.error(f"八字计算失败: {e}")
 
-        if "奇门遁甲" in self.context.selected_theories:
+        if "紫微斗数" in selected_theory_names:
+            if progress_callback:
+                progress_callback("紫微", "正在排紫微斗数命盘...", 93)
+            try:
+                self.context.ziwei_result = ZiWeiTheory().calculate(user_input)
+            except Exception as e:
+                self.logger.error(f"紫微斗数计算失败: {e}")
+
+        if "奇门遁甲" in selected_theory_names:
             if progress_callback:
                 progress_callback("奇门", "正在起奇门局...", 94)
             try:
@@ -534,7 +554,7 @@ class ConversationService:
             except Exception as e:
                 self.logger.error(f"奇门计算失败: {e}")
 
-        if "大六壬" in self.context.selected_theories:
+        if "大六壬" in selected_theory_names:
             if progress_callback:
                 progress_callback("六壬", "正在起六壬课...", 96)
             try:

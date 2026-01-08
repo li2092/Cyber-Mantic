@@ -324,20 +324,31 @@ class AnalysisTab(QWidget):
         try:
             stats_manager = get_usage_stats_manager()
             # 获取主要理论（第一个理论结果）
+            # 注意：theory_results 是 List[TheoryAnalysisResult]，不是字典
             primary_theory = None
-            if report.theory_results:
-                primary_theory = list(report.theory_results.keys())[0]
+            if report.theory_results and len(report.theory_results) > 0:
+                first_result = report.theory_results[0]
+                if hasattr(first_result, 'theory_name'):
+                    primary_theory = first_result.theory_name
+                elif isinstance(first_result, dict):
+                    primary_theory = first_result.get('theory_name')
+
+            # 获取问题类型
+            question_type = None
+            if hasattr(report, 'user_input_summary') and report.user_input_summary:
+                question_type = report.user_input_summary.get('question_type')
+
             stats_manager.record_usage(
                 module='tuiyan',
                 theory=primary_theory,
-                question_type=report.user_input.question_type if report.user_input else None
+                question_type=question_type
             )
             # 标记会话完成
             if self.current_session_id:
                 stats_manager.complete_session(
                     session_id=self.current_session_id,
                     theory=primary_theory,
-                    question_type=report.user_input.question_type if report.user_input else None
+                    question_type=question_type
                 )
                 self.current_session_id = None  # 清除ID
         except Exception as e:

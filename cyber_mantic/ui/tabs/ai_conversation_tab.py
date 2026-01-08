@@ -20,8 +20,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QTextBrowser,
     QPushButton, QSplitter, QLabel, QGroupBox, QFrame, QMessageBox, QScrollArea
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, QEvent
+from PyQt6.QtGui import QFont, QKeyEvent
 from typing import Optional
 import asyncio
 import json
@@ -107,6 +107,8 @@ class AIConversationTab(QWidget):
         self.logger = get_logger(__name__)
         self.worker = None  # 当前工作线程
         self._setup_ui()
+        # 安装事件过滤器以支持回车发送
+        self.input_text.installEventFilter(self)
         self._start_new_conversation()
 
     def _setup_ui(self):
@@ -556,7 +558,7 @@ class AIConversationTab(QWidget):
             pass
         if context.bazi_result:
             self._activate_theory_button("八字")
-        if hasattr(context, 'ziwei_result') and context.ziwei_result:
+        if context.ziwei_result:
             self._activate_theory_button("紫微")
         if context.qimen_result:
             self._activate_theory_button("奇门")
@@ -776,7 +778,7 @@ class AIConversationTab(QWidget):
         theory_result = None
         if theory_name == "八字" and context.bazi_result:
             theory_result = context.bazi_result
-        elif theory_name == "紫微" and hasattr(context, 'ziwei_result') and context.ziwei_result:
+        elif theory_name == "紫微" and context.ziwei_result:
             theory_result = context.ziwei_result
         elif theory_name == "奇门" and context.qimen_result:
             theory_result = context.qimen_result
@@ -859,6 +861,26 @@ class AIConversationTab(QWidget):
             if not self.worker.wait(2000):
                 self.logger.warning("工作线程未能在2秒内结束")
             self.worker = None
+
+    def eventFilter(self, obj, event):
+        """
+        事件过滤器：实现回车发送功能
+
+        - Enter/Return：发送消息
+        - Shift+Enter：换行
+        """
+        if obj == self.input_text and event.type() == QEvent.Type.KeyPress:
+            key_event = event
+            if key_event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                # Shift+Enter 换行，普通 Enter 发送
+                if key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    return False  # 允许换行
+                else:
+                    # 检查发送按钮是否启用
+                    if self.send_btn.isEnabled():
+                        self._on_send_clicked()
+                    return True  # 阻止默认行为
+        return super().eventFilter(obj, event)
 
     def cleanup(self):
         """清理资源（窗口关闭时调用）"""

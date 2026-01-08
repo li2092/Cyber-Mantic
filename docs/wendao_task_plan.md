@@ -30,6 +30,11 @@
 | 右侧面板过宽 | `ui/tabs/ai_conversation_tab.py` | ✅ 已修复 |
 | selected_theories字典列表join错误 | `ai_conversation_tab.py` | ✅ 已修复 |
 | unhashable type: 'dict' | `conversation_service.py` | ✅ 已修复 |
+| **理论列表显示为字典对象** | `conversation_service.py:484` | ✅ 已修复 |
+| **深度分析理论名称检查失败** | `conversation_service.py:521-537` | ✅ 已修复 |
+| **缺少ziwei_result属性** | `conversation/context.py` | ✅ 已修复 |
+| **紫微斗数计算未执行** | `conversation_service.py` | ✅ 已修复 |
+| **输入框回车发送** | `ai_conversation_tab.py` | ✅ 已修复 |
 
 ### 待测试验证
 
@@ -58,7 +63,7 @@
 
 **优先级 P1 - 体验提升**
 
-- [ ] 输入框回车发送
+- [x] 输入框回车发送（Enter发送，Shift+Enter换行）
 - [ ] 加载状态动画优化
 - [ ] 进度条更细腻的阶段反馈
 

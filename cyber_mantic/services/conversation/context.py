@@ -74,6 +74,7 @@ class ConversationContext:
         self.selected_theories: List[str] = []  # 选定的理论列表
         self.theory_results: Dict[str, Dict[str, Any]] = {}  # 各理论的计算结果
         self.bazi_result: Optional[Dict[str, Any]] = None
+        self.ziwei_result: Optional[Dict[str, Any]] = None  # 紫微斗数结果
         self.qimen_result: Optional[Dict[str, Any]] = None
         self.liuren_result: Optional[Dict[str, Any]] = None
         self.liuyao_result: Optional[Dict[str, Any]] = None
@@ -120,6 +121,7 @@ class ConversationContext:
             "selected_theories": self.selected_theories,
             "theory_results": self.theory_results,
             "bazi_result": self.bazi_result,
+            "ziwei_result": self.ziwei_result,
             "qimen_result": self.qimen_result,
             "liuren_result": self.liuren_result,
             "liuyao_result": self.liuyao_result,
@@ -177,6 +179,7 @@ class ConversationContext:
         context.selected_theories = data.get("selected_theories", [])
         context.theory_results = data.get("theory_results", {})
         context.bazi_result = data.get("bazi_result")
+        context.ziwei_result = data.get("ziwei_result")
         context.qimen_result = data.get("qimen_result")
         context.liuren_result = data.get("liuren_result")
         context.liuyao_result = data.get("liuyao_result")
