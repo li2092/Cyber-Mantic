@@ -1,14 +1,16 @@
 """
-PyQt6主窗口 - 支持分析、设置、历史记录
+PyQt6主窗口 - V2版本左侧导航栏布局
 
 特性：
-- GUI界面（需要PyQt6）
+- 左侧导航栏 + 右侧内容区布局
+- 支持收起/展开导航栏
+- 深色/浅色主题
 - 自动降级到CLI模式（当PyQt6不可用时）
 """
 try:
     from PyQt6.QtWidgets import (
         QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFrame,
-        QLabel, QTabWidget, QMessageBox
+        QLabel, QStackedWidget, QMessageBox, QSplitter
     )
     from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QFont, QIcon, QPixmap
@@ -47,6 +49,9 @@ if HAS_PYQT6:
     from utils.theme_manager import ThemeManager
     from utils.error_handler import ErrorHandler
     from utils.question_classifier import classify_question
+
+    # V2组件
+    from ui.components import SidebarWidget
 
 
     class MainWindow(QMainWindow):
@@ -117,7 +122,7 @@ if HAS_PYQT6:
                 self.logger.warning(f"应用图标文件不存在: {icon_path}")
 
         def _init_ui(self):
-            """初始化UI"""
+            """初始化UI - V2版本左侧导航栏布局"""
             # 检查首次启动免责声明
             is_first_launch = self.disclaimer_manager.should_show_first_launch()
             if is_first_launch:
@@ -131,32 +136,41 @@ if HAS_PYQT6:
             if is_first_launch and not config_manager.is_onboarding_completed():
                 self._show_onboarding()
 
+            # 获取当前主题
+            current_theme = self.theme_manager.get_current_theme()
+
+            # ========== 主布局：左侧导航栏 + 右侧内容区 ==========
             central_widget = QWidget()
             self.setCentralWidget(central_widget)
-            main_layout = QVBoxLayout(central_widget)
+            main_layout = QHBoxLayout(central_widget)
+            main_layout.setContentsMargins(0, 0, 0, 0)
+            main_layout.setSpacing(0)
 
-            # 标题
-            title_label = QLabel("赛博玄数 - 多理论术数智能分析系统")
-            title_font = QFont()
-            title_font.setPointSize(20)
-            title_font.setBold(True)
-            title_label.setFont(title_font)
-            title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            main_layout.addWidget(title_label)
+            # ========== 左侧导航栏 ==========
+            self.sidebar = SidebarWidget(theme=current_theme)
+            self.sidebar.navigation_changed.connect(self._on_navigation_changed)
+            main_layout.addWidget(self.sidebar)
 
-            # 主标签页（v4.0架构：问道/推演/典籍/洞察/历史记录/设置）
-            self.main_tabs = QTabWidget()
+            # ========== 右侧内容区（使用QStackedWidget切换页面） ==========
+            self.content_stack = QStackedWidget()
+            self.content_stack.setObjectName("contentStack")
+            main_layout.addWidget(self.content_stack)
 
-            # === 1. 问道标签页（原AI对话）===
+            # 导航ID到页面索引的映射
+            self.nav_to_index = {}
+
+            # === 1. 问道页面（原AI对话）===
             try:
                 self.ai_conversation_tab = AIConversationTab(self.api_manager)
                 self.ai_conversation_tab.save_requested.connect(self._save_conversation)
-                self.main_tabs.addTab(self.ai_conversation_tab, "💬 问道")
+                idx = self.content_stack.addWidget(self.ai_conversation_tab)
+                self.nav_to_index["wendao"] = idx
             except Exception as e:
-                self.error_handler.handle_error(e, "问道标签页初始化", show_dialog=False)
-                self.logger.warning("问道标签页初始化失败，已跳过")
+                self.error_handler.handle_error(e, "问道页面初始化", show_dialog=False)
+                self.logger.warning("问道页面初始化失败，已跳过")
+                self._add_placeholder_page("wendao", "问道")
 
-            # === 2. 推演标签页（原分析）===
+            # === 2. 推演页面（原分析）===
             try:
                 self.analysis_tab = AnalysisTab(
                     self.analysis_service,
@@ -165,38 +179,46 @@ if HAS_PYQT6:
                 )
                 # 连接信号：分析完成后刷新历史记录
                 self.analysis_tab.analysis_completed.connect(self._on_analysis_completed)
-                self.main_tabs.addTab(self.analysis_tab, "📊 推演")
+                idx = self.content_stack.addWidget(self.analysis_tab)
+                self.nav_to_index["tuiyan"] = idx
             except Exception as e:
-                self.error_handler.handle_error(e, "推演标签页初始化", show_dialog=False)
-                self.logger.error(f"推演标签页初始化失败: {e}")
+                self.error_handler.handle_error(e, "推演页面初始化", show_dialog=False)
+                self.logger.error(f"推演页面初始化失败: {e}")
+                self._add_placeholder_page("tuiyan", "推演")
 
-            # === 3. 典籍标签页 ===
+            # === 3. 典籍页面 ===
             try:
                 self.library_tab = LibraryTab(api_manager=self.api_manager, parent=self)
-                self.main_tabs.addTab(self.library_tab, "📚 典籍")
+                idx = self.content_stack.addWidget(self.library_tab)
+                self.nav_to_index["dianji"] = idx
             except Exception as e:
-                self.error_handler.handle_error(e, "典籍标签页初始化", show_dialog=False)
-                self.logger.error(f"典籍标签页初始化失败: {e}")
+                self.error_handler.handle_error(e, "典籍页面初始化", show_dialog=False)
+                self.logger.error(f"典籍页面初始化失败: {e}")
+                self._add_placeholder_page("dianji", "典籍")
 
-            # === 4. 洞察标签页 ===
+            # === 4. 洞察页面 ===
             try:
                 self.insight_tab = InsightTab(api_manager=self.api_manager, parent=self)
-                self.main_tabs.addTab(self.insight_tab, "🔮 洞察")
+                idx = self.content_stack.addWidget(self.insight_tab)
+                self.nav_to_index["dongcha"] = idx
             except Exception as e:
-                self.error_handler.handle_error(e, "洞察标签页初始化", show_dialog=False)
-                self.logger.error(f"洞察标签页初始化失败: {e}")
+                self.error_handler.handle_error(e, "洞察页面初始化", show_dialog=False)
+                self.logger.error(f"洞察页面初始化失败: {e}")
+                self._add_placeholder_page("dongcha", "洞察")
 
-            # === 5. 历史记录标签页 ===
+            # === 5. 历史记录页面 ===
             try:
                 self.history_tab = HistoryTab(self.history_manager, self)
                 # 连接信号：查看历史报告
                 self.history_tab.report_selected.connect(self._on_history_report_selected)
-                self.main_tabs.addTab(self.history_tab, "📜 历史记录")
+                idx = self.content_stack.addWidget(self.history_tab)
+                self.nav_to_index["lishi"] = idx
             except Exception as e:
-                self.error_handler.handle_error(e, "历史记录标签页初始化", show_dialog=False)
-                self.logger.error(f"历史记录标签页初始化失败: {e}")
+                self.error_handler.handle_error(e, "历史记录页面初始化", show_dialog=False)
+                self.logger.error(f"历史记录页面初始化失败: {e}")
+                self._add_placeholder_page("lishi", "历史记录")
 
-            # === 6. 设置标签页 ===
+            # === 6. 设置页面 ===
             try:
                 from utils.template_manager import TemplateManager
                 template_manager = TemplateManager()
@@ -212,12 +234,97 @@ if HAS_PYQT6:
                 self.settings_tab.theme_changed.connect(self._on_theme_changed)
                 self.settings_tab.config_saved.connect(self._on_config_saved)
                 self.settings_tab.refresh_feature_status_requested.connect(self._refresh_feature_status)
-                self.main_tabs.addTab(self.settings_tab, "⚙️ 设置")
+                idx = self.content_stack.addWidget(self.settings_tab)
+                self.nav_to_index["shezhi"] = idx
             except Exception as e:
-                self.error_handler.handle_error(e, "设置标签页初始化", show_dialog=False)
-                self.logger.error(f"设置标签页初始化失败: {e}")
+                self.error_handler.handle_error(e, "设置页面初始化", show_dialog=False)
+                self.logger.error(f"设置页面初始化失败: {e}")
+                self._add_placeholder_page("shezhi", "设置")
 
-            main_layout.addWidget(self.main_tabs)
+            # === 7. 关于页面 ===
+            self._add_about_page()
+
+            # 默认显示问道页面
+            if "wendao" in self.nav_to_index:
+                self.content_stack.setCurrentIndex(self.nav_to_index["wendao"])
+
+        def _add_placeholder_page(self, nav_id: str, name: str):
+            """添加占位页面（当某个页面初始化失败时使用）"""
+            placeholder = QWidget()
+            layout = QVBoxLayout(placeholder)
+            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            label = QLabel(f"📋 {name}页面加载失败")
+            label.setStyleSheet("font-size: 18px; color: #94A3B8;")
+            layout.addWidget(label)
+
+            hint = QLabel("请检查日志获取详细错误信息")
+            hint.setStyleSheet("font-size: 12px; color: #64748B;")
+            layout.addWidget(hint)
+
+            idx = self.content_stack.addWidget(placeholder)
+            self.nav_to_index[nav_id] = idx
+
+        def _add_about_page(self):
+            """添加关于页面"""
+            about_widget = QWidget()
+            layout = QVBoxLayout(about_widget)
+            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.setSpacing(20)
+
+            # Logo
+            logo_label = QLabel()
+            from pathlib import Path
+            icon_path = Path(__file__).parent / "resources" / "app_icon.png"
+            if icon_path.exists():
+                pixmap = QPixmap(str(icon_path))
+                scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation)
+                logo_label.setPixmap(scaled)
+            else:
+                logo_label.setText("🔮")
+                logo_label.setStyleSheet("font-size: 48px;")
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(logo_label)
+
+            # 名称
+            name_label = QLabel("赛博玄数")
+            name_label.setStyleSheet("font-size: 28px; font-weight: bold;")
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(name_label)
+
+            # 英文名
+            en_label = QLabel("Cyber Mantic")
+            en_label.setStyleSheet("font-size: 14px; color: #64748B;")
+            en_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(en_label)
+
+            # 版本
+            version_label = QLabel("V2.0")
+            version_label.setStyleSheet("font-size: 12px; color: #94A3B8;")
+            version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(version_label)
+
+            # 描述
+            desc_label = QLabel("多理论术数智能分析系统")
+            desc_label.setStyleSheet("font-size: 13px; color: #64748B;")
+            desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(desc_label)
+
+            # 免责声明
+            disclaimer = QLabel("⚠️ 仅供参考，不构成任何决策建议")
+            disclaimer.setStyleSheet("font-size: 11px; color: #F59E0B; margin-top: 30px;")
+            disclaimer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(disclaimer)
+
+            idx = self.content_stack.addWidget(about_widget)
+            self.nav_to_index["about"] = idx
+
+        def _on_navigation_changed(self, nav_id: str):
+            """导航切换回调"""
+            if nav_id in self.nav_to_index:
+                self.content_stack.setCurrentIndex(self.nav_to_index[nav_id])
+                self.logger.debug(f"切换到页面: {nav_id}")
 
         def _check_api_config(self):
             """检查API配置"""
@@ -244,10 +351,17 @@ if HAS_PYQT6:
             """主题更改回调"""
             try:
                 self._apply_theme()
+                # 更新侧边栏主题
+                if hasattr(self, 'sidebar'):
+                    self.sidebar.set_theme(theme_name)
+                # 更新聊天组件主题（如果有）
+                if hasattr(self, 'ai_conversation_tab') and self.ai_conversation_tab:
+                    if hasattr(self.ai_conversation_tab, 'chat_widget'):
+                        self.ai_conversation_tab.chat_widget.update_theme(theme_name)
                 QMessageBox.information(
                     self,
                     "主题已更改",
-                    f"主题已切换为：{theme_name}\n\n建议重启应用程序以完全生效。"
+                    f"主题已切换为：{theme_name}\n\n部分组件可能需要重启应用程序才能完全生效。"
                 )
                 self.logger.info(f"主题已切换为: {theme_name}")
             except Exception as e:
@@ -298,14 +412,16 @@ if HAS_PYQT6:
                 self.error_handler.handle_error(e, "处理分析完成事件", show_dialog=False)
 
         def _on_history_report_selected(self, report: ComprehensiveReport):
-            """历史报告被选中 - 切换到推演标签页显示并更新问道八字命盘"""
+            """历史报告被选中 - 切换到推演页面显示并更新问道八字命盘"""
             try:
                 if self.analysis_tab:
-                    # 设置报告到推演标签页
+                    # 设置报告到推演页面
                     self.analysis_tab.display_report(report)
-                    # 切换到推演标签页（索引1）
-                    self.main_tabs.setCurrentIndex(1)
-                # 更新问道标签页的八字命盘信息
+                    # 切换到推演页面
+                    if "tuiyan" in self.nav_to_index:
+                        self.content_stack.setCurrentIndex(self.nav_to_index["tuiyan"])
+                        self.sidebar.set_current_nav("tuiyan")
+                # 更新问道页面的八字命盘信息
                 if self.ai_conversation_tab:
                     self.ai_conversation_tab.update_from_report(report)
                 self.logger.info(f"查看历史报告: {report.report_id}")
