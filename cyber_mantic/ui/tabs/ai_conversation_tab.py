@@ -140,87 +140,211 @@ class AIConversationTab(QWidget):
         self.setLayout(layout)
 
     def _create_left_panel(self) -> QWidget:
-        """创建左侧对话面板"""
+        """创建左侧对话面板 - V2美化版"""
         widget = QWidget()
         layout = QVBoxLayout()
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # 标题栏
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(16)
+        # ========== 顶部工具栏 ==========
+        toolbar = QFrame()
+        toolbar.setObjectName("chatToolbar")
+        toolbar.setStyleSheet("""
+            QFrame#chatToolbar {
+                background-color: rgba(99, 102, 241, 0.08);
+                border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+                padding: 8px 16px;
+            }
+        """)
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(16, 10, 16, 10)
+        toolbar_layout.setSpacing(12)
 
-        title_label = QLabel("💬 AI智能对话模式")
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        header_layout.addWidget(title_label)
+        # 新对话按钮（左侧，更醒目）
+        self.new_conversation_btn = QPushButton("✨ 新对话")
+        self.new_conversation_btn.setMinimumHeight(38)
+        self.new_conversation_btn.setMinimumWidth(100)
+        self.new_conversation_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.new_conversation_btn.clicked.connect(self._on_new_conversation_clicked)
+        self.new_conversation_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #8B5CF6, stop:1 #6366F1);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #A78BFA, stop:1 #818CF8);
+            }
+            QPushButton:pressed {
+                background: #6366F1;
+            }
+        """)
+        toolbar_layout.addWidget(self.new_conversation_btn)
 
-        header_layout.addStretch()
-
-        # 字体调节按钮
-        font_label = QLabel("字体:")
-        header_layout.addWidget(font_label)
-
-        self.chat_font_decrease_btn = QPushButton("🔍-")
-        self.chat_font_decrease_btn.setMaximumWidth(50)
-        self.chat_font_decrease_btn.setMinimumHeight(32)
-        self.chat_font_decrease_btn.setToolTip("缩小字体")
-        self.chat_font_decrease_btn.clicked.connect(self._decrease_chat_font)
-        header_layout.addWidget(self.chat_font_decrease_btn)
-
-        self.chat_font_reset_btn = QPushButton("↺")
-        self.chat_font_reset_btn.setMaximumWidth(40)
-        self.chat_font_reset_btn.setMinimumHeight(32)
-        self.chat_font_reset_btn.setToolTip("重置字体")
-        self.chat_font_reset_btn.clicked.connect(self._reset_chat_font)
-        header_layout.addWidget(self.chat_font_reset_btn)
-
-        self.chat_font_increase_btn = QPushButton("🔍+")
-        self.chat_font_increase_btn.setMaximumWidth(50)
-        self.chat_font_increase_btn.setMinimumHeight(32)
-        self.chat_font_increase_btn.setToolTip("放大字体")
-        self.chat_font_increase_btn.clicked.connect(self._increase_chat_font)
-        header_layout.addWidget(self.chat_font_increase_btn)
-
-        # 工具按钮
+        # 保存对话按钮
         self.save_btn = QPushButton("💾 保存对话")
         self.save_btn.setEnabled(False)
-        self.save_btn.setMinimumHeight(36)
+        self.save_btn.setMinimumHeight(38)
+        self.save_btn.setMinimumWidth(100)
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_btn.clicked.connect(self._on_save_clicked)
-        header_layout.addWidget(self.save_btn)
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(16, 185, 129, 0.15);
+                color: #10B981;
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: rgba(16, 185, 129, 0.25);
+                border-color: #10B981;
+            }
+            QPushButton:disabled {
+                background-color: rgba(148, 163, 184, 0.1);
+                color: #94A3B8;
+                border-color: rgba(148, 163, 184, 0.2);
+            }
+        """)
+        toolbar_layout.addWidget(self.save_btn)
 
-        self.new_conversation_btn = QPushButton("🔄 新对话")
-        self.new_conversation_btn.setMinimumHeight(36)
-        self.new_conversation_btn.setProperty("secondary", True)
-        self.new_conversation_btn.clicked.connect(self._on_new_conversation_clicked)
-        header_layout.addWidget(self.new_conversation_btn)
+        toolbar_layout.addStretch()
+
+        # 字体调节按钮（右侧，更小巧）
+        font_frame = QFrame()
+        font_layout = QHBoxLayout(font_frame)
+        font_layout.setContentsMargins(0, 0, 0, 0)
+        font_layout.setSpacing(4)
+
+        font_btn_style = """
+            QPushButton {
+                background-color: rgba(148, 163, 184, 0.1);
+                color: #94A3B8;
+                border: none;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: rgba(148, 163, 184, 0.2);
+                color: #E2E8F0;
+            }
+        """
+
+        self.chat_font_decrease_btn = QPushButton("A-")
+        self.chat_font_decrease_btn.setFixedSize(32, 28)
+        self.chat_font_decrease_btn.setToolTip("缩小字体")
+        self.chat_font_decrease_btn.clicked.connect(self._decrease_chat_font)
+        self.chat_font_decrease_btn.setStyleSheet(font_btn_style)
+        font_layout.addWidget(self.chat_font_decrease_btn)
+
+        self.chat_font_reset_btn = QPushButton("↺")
+        self.chat_font_reset_btn.setFixedSize(28, 28)
+        self.chat_font_reset_btn.setToolTip("重置字体")
+        self.chat_font_reset_btn.clicked.connect(self._reset_chat_font)
+        self.chat_font_reset_btn.setStyleSheet(font_btn_style)
+        font_layout.addWidget(self.chat_font_reset_btn)
+
+        self.chat_font_increase_btn = QPushButton("A+")
+        self.chat_font_increase_btn.setFixedSize(32, 28)
+        self.chat_font_increase_btn.setToolTip("放大字体")
+        self.chat_font_increase_btn.clicked.connect(self._increase_chat_font)
+        self.chat_font_increase_btn.setStyleSheet(font_btn_style)
+        font_layout.addWidget(self.chat_font_increase_btn)
+
+        toolbar_layout.addWidget(font_frame)
+
+        layout.addWidget(toolbar)
 
         # 初始化字体大小
         self.chat_font_size = 11  # 默认11pt
 
-        layout.addLayout(header_layout)
+        # ========== 聊天消息区域 ==========
+        chat_container = QWidget()
+        chat_layout = QVBoxLayout(chat_container)
+        chat_layout.setContentsMargins(0, 0, 0, 0)
+        chat_layout.setSpacing(0)
 
-        # 聊天消息区域
         self.chat_widget = ChatWidget()
-        layout.addWidget(self.chat_widget)
+        chat_layout.addWidget(self.chat_widget)
 
-        # 输入区域
-        input_layout = QHBoxLayout()
-        input_layout.setSpacing(8)
+        layout.addWidget(chat_container, 1)  # 占用剩余空间
+
+        # ========== 底部输入区域 ==========
+        input_container = QFrame()
+        input_container.setObjectName("inputContainer")
+        input_container.setStyleSheet("""
+            QFrame#inputContainer {
+                background-color: rgba(30, 41, 59, 0.5);
+                border-top: 1px solid rgba(148, 163, 184, 0.1);
+            }
+        """)
+        input_main_layout = QVBoxLayout(input_container)
+        input_main_layout.setContentsMargins(16, 12, 16, 12)
+        input_main_layout.setSpacing(8)
+
+        # 输入框 + 发送按钮
+        input_row = QHBoxLayout()
+        input_row.setSpacing(12)
 
         self.input_text = QTextEdit()
-        self.input_text.setPlaceholderText("在此输入您的消息...")
-        self.input_text.setMaximumHeight(100)
-        input_layout.addWidget(self.input_text)
+        self.input_text.setPlaceholderText("输入您想咨询的问题... (Enter发送，Shift+Enter换行)")
+        self.input_text.setMinimumHeight(50)
+        self.input_text.setMaximumHeight(120)
+        self.input_text.setStyleSheet("""
+            QTextEdit {
+                background-color: rgba(15, 23, 42, 0.6);
+                border: 1px solid rgba(148, 163, 184, 0.2);
+                border-radius: 12px;
+                padding: 12px 16px;
+                color: #F1F5F9;
+                font-size: 14px;
+            }
+            QTextEdit:focus {
+                border-color: #6366F1;
+            }
+        """)
+        input_row.addWidget(self.input_text)
 
         self.send_btn = QPushButton("发送")
-        self.send_btn.setFixedSize(100, 100)
+        self.send_btn.setFixedSize(80, 50)
+        self.send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.send_btn.clicked.connect(self._on_send_clicked)
-        input_layout.addWidget(self.send_btn)
+        self.send_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #6366F1, stop:1 #4F46E5);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #818CF8, stop:1 #6366F1);
+            }
+            QPushButton:pressed {
+                background: #4F46E5;
+            }
+            QPushButton:disabled {
+                background: #475569;
+                color: #94A3B8;
+            }
+        """)
+        input_row.addWidget(self.send_btn)
 
-        layout.addLayout(input_layout)
+        input_main_layout.addLayout(input_row)
+
+        layout.addWidget(input_container)
 
         widget.setLayout(layout)
         return widget
