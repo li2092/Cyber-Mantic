@@ -4,6 +4,46 @@
 
 ---
 
+## 零、阶段一完成记录（2026-01-08）
+
+### 已完成的文件
+
+**新增文件：**
+- `cyber_mantic/ui/components/__init__.py` - 组件模块初始化
+- `cyber_mantic/ui/components/sidebar.py` - 左侧导航栏组件（SidebarWidget）
+- `cyber_mantic/ui/components/nav_item.py` - 导航项组件（NavItem）
+
+**修改文件：**
+- `cyber_mantic/ui/main_window.py` - 从TabWidget改为左侧导航栏布局
+- `cyber_mantic/ui/tabs/ai_conversation_tab.py` - 新增工具栏（新对话、保存按钮）、优化输入框配色
+- `cyber_mantic/ui/widgets/chat_widget.py` - 重构聊天气泡样式、优化打字动画
+
+### 关键实现细节
+
+**1. 左侧导航栏**
+- 展开宽度：180px，收起宽度：60px
+- Logo区域高度：90px
+- 收起/展开按钮：汉堡菜单样式（☰）
+- 导航项：问道💬、推演📊、典籍📚、洞察👁、历史📜、设置⚙️、关于ℹ️
+
+**2. 聊天气泡设计**
+- AI消息：Logo(24x24) + "赛博玄数" 在气泡上方，白色/深色背景
+- 用户消息：紫色气泡(#8B5CF6)，无头像，右对齐
+- 气泡最大宽度：AI 600px，用户 500px
+
+**3. 打字动画优化**
+- 打字过程使用纯文本HTML，避免Markdown渲染跳动
+- 固定文本区域宽度，动画结束后解除
+- 添加闪烁光标效果（▋）
+- 只在动画结束后渲染完整Markdown
+
+**4. 输入框配色（深色主题）**
+- 背景色：#2D2D3D
+- 边框：rgba(99, 102, 241, 0.3)
+- 聚焦时：边框#6366F1，背景#33334D
+
+---
+
 ## 一、设计决策记录
 
 ### 1.1 界面布局决策

@@ -105,9 +105,16 @@ class ConversationService:
 
     async def start_conversation(
         self,
-        progress_callback: Optional[Callable[[str, str, int], None]] = None
+        progress_callback: Optional[Callable[[str, str, int], None]] = None,
+        theory_callback: Optional[Callable[[str, str, dict], None]] = None
     ) -> str:
-        """开始对话会话 - 阶段1破冰"""
+        """开始对话会话 - 阶段1破冰
+
+        Args:
+            progress_callback: 进度回调 (stage, message, progress)
+            theory_callback: 理论分析回调 (event_type, theory_name, data)
+                event_type: 'started' | 'completed' | 'quick_result'
+        """
         self.context = ConversationContext()
         self.context.stage = ConversationStage.STAGE1_ICEBREAK
         self._init_handlers()
@@ -148,24 +155,31 @@ class ConversationService:
     async def process_user_input(
         self,
         user_message: str,
-        progress_callback: Optional[Callable[[str, str, int], None]] = None
+        progress_callback: Optional[Callable[[str, str, int], None]] = None,
+        theory_callback: Optional[Callable[[str, str, dict], None]] = None
     ) -> str:
-        """处理用户输入（路由到对应阶段）"""
+        """处理用户输入（路由到对应阶段）
+
+        Args:
+            user_message: 用户输入
+            progress_callback: 进度回调 (stage, message, progress)
+            theory_callback: 理论分析回调 (event_type, theory_name, data)
+        """
         self._add_message("user", user_message)
         stage = self.context.stage
 
         try:
             # INIT 阶段也当作破冰阶段处理（用户可能在欢迎消息之前就发送了消息）
             if stage in (ConversationStage.INIT, ConversationStage.STAGE1_ICEBREAK):
-                response = await self._handle_stage1(user_message, progress_callback)
+                response = await self._handle_stage1(user_message, progress_callback, theory_callback)
             elif stage == ConversationStage.STAGE2_BASIC_INFO:
-                response = await self._handle_stage2(user_message, progress_callback)
+                response = await self._handle_stage2(user_message, progress_callback, theory_callback)
             elif stage == ConversationStage.STAGE3_SUPPLEMENT:
-                response = await self._handle_stage3(user_message, progress_callback)
+                response = await self._handle_stage3(user_message, progress_callback, theory_callback)
             elif stage == ConversationStage.STAGE4_VERIFICATION:
-                response = await self._handle_stage4(user_message, progress_callback)
+                response = await self._handle_stage4(user_message, progress_callback, theory_callback)
             elif stage == ConversationStage.STAGE5_FINAL_REPORT:
-                response = await self._handle_stage5(progress_callback)
+                response = await self._handle_stage5(progress_callback, theory_callback)
             elif stage in (ConversationStage.QA, ConversationStage.COMPLETED):
                 response = await self._handle_qa(user_message, progress_callback)
             else:
@@ -183,7 +197,7 @@ class ConversationService:
 
     # ==================== 阶段处理 ====================
 
-    async def _handle_stage1(self, user_message: str, progress_callback) -> str:
+    async def _handle_stage1(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段1：破冰 - 解析问题和随机数字，小六壬起卦"""
         # 开始会话追踪
         try:
@@ -210,8 +224,19 @@ class ConversationService:
         if progress_callback:
             progress_callback("小六壬", "正在用小六壬起卦...", 30)
 
+        # V2: 通知理论开始
+        if theory_callback:
+            theory_callback('started', '小六壬', None)
+
         xiaoliu_result = self._calculate_xiaoliu()
         self.context.xiaoliu_result = xiaoliu_result
+
+        # V2: 通知理论完成
+        if theory_callback:
+            theory_callback('completed', '小六壬', {
+                'summary': xiaoliu_result.get('判断', '初步判断完成'),
+                'judgment': self._get_xiaoliu_judgment(xiaoliu_result)
+            })
 
         if progress_callback:
             progress_callback("小六壬", "正在生成初步判断...", 50)
@@ -250,7 +275,7 @@ class ConversationService:
 请输入您的出生信息：
 """
 
-    async def _handle_stage2(self, user_message: str, progress_callback) -> str:
+    async def _handle_stage2(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段2：基础信息收集"""
         # 更新会话阶段
         self._update_session_stage('stage2_basic_info')
@@ -270,7 +295,7 @@ class ConversationService:
         if progress_callback:
             progress_callback("理论选择", "正在计算理论适配度...", 75)
 
-        theories_display = await self._calculate_theory_fitness()
+        theories_display = await self._calculate_theory_fitness(theory_callback)
         need_supplement = self.context.time_certainty in ("uncertain", "unknown")
 
         self.context.stage = ConversationStage.STAGE3_SUPPLEMENT if need_supplement else ConversationStage.STAGE4_VERIFICATION
@@ -319,7 +344,7 @@ class ConversationService:
 """
         return response
 
-    async def _handle_stage3(self, user_message: str, progress_callback) -> str:
+    async def _handle_stage3(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段3：深度补充 - 时辰推断"""
         # 更新会话阶段
         self._update_session_stage('stage3_supplement')
@@ -354,7 +379,7 @@ class ConversationService:
 请简单描述：
 """
 
-    async def _handle_stage4(self, user_message: str, progress_callback) -> str:
+    async def _handle_stage4(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段4：结果验证"""
         # 更新会话阶段
         self._update_session_stage('stage4_verification')
@@ -373,12 +398,12 @@ class ConversationService:
         if progress_callback:
             progress_callback("深度分析", "正在进行深度分析...", 90)
 
-        await self._run_deep_analysis(progress_callback)
+        await self._run_deep_analysis(progress_callback, theory_callback)
         self.context.stage = ConversationStage.STAGE5_FINAL_REPORT
 
-        return await self._handle_stage5(progress_callback)
+        return await self._handle_stage5(progress_callback, theory_callback)
 
-    async def _handle_stage5(self, progress_callback) -> str:
+    async def _handle_stage5(self, progress_callback, theory_callback=None) -> str:
         """阶段5：生成最终报告"""
         if progress_callback:
             progress_callback("报告生成", "正在生成综合分析报告...", 95)
@@ -470,7 +495,7 @@ class ConversationService:
             self.logger.error(f"小六壬解读失败: {e}")
             return f"📍 落宫：{result.get('时落宫', '未知')}\n\n（系统繁忙，将在后续分析中补充详细解读）"
 
-    async def _calculate_theory_fitness(self) -> str:
+    async def _calculate_theory_fitness(self, theory_callback=None) -> str:
         """计算理论适配度"""
         user_input = UserInput(
             question_type=self.context.question_category,
@@ -512,7 +537,7 @@ class ConversationService:
                 theory_name = str(theory_item)
             self.context.theory_confidence_adjustment[theory_name] = adj
 
-    async def _run_deep_analysis(self, progress_callback):
+    async def _run_deep_analysis(self, progress_callback, theory_callback=None):
         """执行深度分析"""
         if not self.context.birth_info:
             return
@@ -540,32 +565,60 @@ class ConversationService:
         if "八字" in selected_theory_names:
             if progress_callback:
                 progress_callback("八字", "正在计算八字命盘...", 91)
+            if theory_callback:
+                theory_callback('started', '八字', None)
             try:
                 self.context.bazi_result = BaZiTheory().calculate(user_input)
+                if theory_callback:
+                    theory_callback('completed', '八字', {
+                        'summary': self._get_bazi_summary(self.context.bazi_result),
+                        'judgment': self._get_bazi_judgment(self.context.bazi_result)
+                    })
             except Exception as e:
                 self.logger.error(f"八字计算失败: {e}")
 
         if "紫微斗数" in selected_theory_names:
             if progress_callback:
                 progress_callback("紫微", "正在排紫微斗数命盘...", 93)
+            if theory_callback:
+                theory_callback('started', '紫微斗数', None)
             try:
                 self.context.ziwei_result = ZiWeiTheory().calculate(user_input)
+                if theory_callback:
+                    theory_callback('completed', '紫微斗数', {
+                        'summary': '命盘排布完成',
+                        'judgment': '平'
+                    })
             except Exception as e:
                 self.logger.error(f"紫微斗数计算失败: {e}")
 
         if "奇门遁甲" in selected_theory_names:
             if progress_callback:
                 progress_callback("奇门", "正在起奇门局...", 94)
+            if theory_callback:
+                theory_callback('started', '奇门遁甲', None)
             try:
                 self.context.qimen_result = QiMenTheory().calculate(user_input)
+                if theory_callback:
+                    theory_callback('completed', '奇门遁甲', {
+                        'summary': self._get_qimen_summary(self.context.qimen_result),
+                        'judgment': self._get_qimen_judgment(self.context.qimen_result)
+                    })
             except Exception as e:
                 self.logger.error(f"奇门计算失败: {e}")
 
         if "大六壬" in selected_theory_names:
             if progress_callback:
                 progress_callback("六壬", "正在起六壬课...", 96)
+            if theory_callback:
+                theory_callback('started', '大六壬', None)
             try:
                 self.context.liuren_result = DaLiuRenTheory().calculate(user_input)
+                if theory_callback:
+                    theory_callback('completed', '大六壬', {
+                        'summary': '六壬课起成',
+                        'judgment': '平'
+                    })
             except Exception as e:
                 self.logger.error(f"六壬计算失败: {e}")
 
@@ -644,6 +697,58 @@ class ConversationService:
         """将对话导出为Markdown格式"""
         self.exporter.context = self.context
         return self.exporter.export_to_markdown()
+
+    # ==================== V2: 理论结果摘要辅助方法 ====================
+
+    def _get_xiaoliu_judgment(self, result: dict) -> str:
+        """从小六壬结果提取吉凶判断"""
+        if not result:
+            return "平"
+        gong = result.get('时落宫', '')
+        # 大安、速喜为吉；赤口、小吉为平；空亡、留连为凶
+        if gong in ('大安', '速喜'):
+            return "吉"
+        elif gong in ('赤口', '空亡', '留连'):
+            return "凶"
+        return "平"
+
+    def _get_bazi_summary(self, result: dict) -> str:
+        """从八字结果提取摘要"""
+        if not result:
+            return "八字分析完成"
+        day_master = result.get('日主', '')
+        strength = result.get('用神分析', {}).get('日主强弱', '')
+        if day_master and strength:
+            return f"日主{day_master}，{strength}"
+        return "八字命盘已排布"
+
+    def _get_bazi_judgment(self, result: dict) -> str:
+        """从八字结果提取吉凶判断"""
+        # 八字分析通常较复杂，默认返回平
+        return "平"
+
+    def _get_qimen_summary(self, result: dict) -> str:
+        """从奇门遁甲结果提取摘要"""
+        if not result:
+            return "奇门局起成"
+        # 尝试提取关键信息
+        if isinstance(result, dict):
+            if 'judgment' in result:
+                return result['judgment'][:50] if len(result.get('judgment', '')) > 50 else result.get('judgment', '奇门分析完成')
+        return "奇门局起成"
+
+    def _get_qimen_judgment(self, result: dict) -> str:
+        """从奇门遁甲结果提取吉凶判断"""
+        if not result:
+            return "平"
+        # 尝试从结果中提取判断
+        if isinstance(result, dict):
+            judgment_text = result.get('judgment', result.get('判断', ''))
+            if '吉' in judgment_text:
+                return "吉"
+            elif '凶' in judgment_text:
+                return "凶"
+        return "平"
 
     def can_skip_to_stage(self, target_stage: ConversationStage) -> bool:
         """检查是否可以跳转到指定阶段"""

@@ -37,9 +37,15 @@ from ui.dialogs.warning_dialogs import show_warning_dialog, ForcedCoolingDialog
 
 class ConversationWorker(QThread):
     """对话异步工作线程"""
+    # 现有信号
     message_received = pyqtSignal(str)  # AI回复消息
     progress_updated = pyqtSignal(str, str, int)  # (stage, message, progress)
     error = pyqtSignal(str)
+
+    # V2新增信号：理论分析进度
+    theory_started = pyqtSignal(str)           # 理论开始计算（theory_name）
+    theory_completed = pyqtSignal(str, dict)   # 理论完成（theory_name, result）
+    quick_result = pyqtSignal(str, str, str)   # 快速结果（theory_name, summary, judgment）
 
     def __init__(self, service: ConversationService, user_message: str, is_start: bool = False):
         super().__init__()
@@ -66,14 +72,16 @@ class ConversationWorker(QThread):
             if self.is_start:
                 response = loop.run_until_complete(
                     self.service.start_conversation(
-                        progress_callback=self.emit_progress
+                        progress_callback=self.emit_progress,
+                        theory_callback=self.emit_theory_update
                     )
                 )
             else:
                 response = loop.run_until_complete(
                     self.service.process_user_input(
                         self.user_message,
-                        progress_callback=self.emit_progress
+                        progress_callback=self.emit_progress,
+                        theory_callback=self.emit_theory_update
                     )
                 )
 
@@ -92,6 +100,31 @@ class ConversationWorker(QThread):
     def emit_progress(self, stage: str, message: str, progress: int):
         """发送进度信号"""
         self.progress_updated.emit(stage, message, progress)
+
+    def emit_theory_update(self, event_type: str, theory_name: str, data: dict = None):
+        """
+        发送理论分析更新信号
+
+        Args:
+            event_type: 事件类型 ('started', 'completed', 'quick_result')
+            theory_name: 理论名称
+            data: 附加数据（completed时为结果，quick_result时为摘要信息）
+        """
+        if self._is_cancelled:
+            return
+
+        if event_type == 'started':
+            self.theory_started.emit(theory_name)
+        elif event_type == 'completed':
+            self.theory_completed.emit(theory_name, data or {})
+            # 同时发送快速结果
+            summary = data.get('summary', '分析完成') if data else '分析完成'
+            judgment = data.get('judgment', '平') if data else '平'
+            self.quick_result.emit(theory_name, summary, judgment)
+        elif event_type == 'quick_result':
+            summary = data.get('summary', '') if data else ''
+            judgment = data.get('judgment', '平') if data else '平'
+            self.quick_result.emit(theory_name, summary, judgment)
 
 
 class AIConversationTab(QWidget):
