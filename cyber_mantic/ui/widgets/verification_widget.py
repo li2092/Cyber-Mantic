@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from typing import List, Optional, Callable
-from cyber_mantic.core.dynamic_verification import VerificationQuestion, VerificationResult
+from core.dynamic_verification import VerificationQuestion, VerificationResult
 
 
 class SingleQuestionWidget(QFrame):
@@ -331,7 +331,7 @@ class VerificationPanel(QFrame):
             self.questions[index].is_verified = None
         else:
             # 评估答案
-            from cyber_mantic.core.dynamic_verification import DynamicVerificationGenerator
+            from core.dynamic_verification import DynamicVerificationGenerator
             generator = DynamicVerificationGenerator()
             is_verified = generator.evaluate_answer(self.questions[index], answer)
 

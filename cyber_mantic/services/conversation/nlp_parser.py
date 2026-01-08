@@ -514,3 +514,287 @@ class NLPParser:
         except Exception as e:
             self.logger.error(f"时辰推断失败: {e}")
             return None
+
+    # ==================== V2增强：ShichenHandler集成 ====================
+
+    async def parse_birth_info_v2(self, user_message: str) -> Dict[str, Any]:
+        """
+        V2增强版出生信息解析
+
+        增强功能：
+        1. 识别 known_range 状态（如"上午"、"凌晨"）
+        2. 返回候选时辰列表
+        3. 集成ShichenHandler进行智能时间处理
+
+        Args:
+            user_message: 用户输入
+
+        Returns:
+            增强版解析结果，包含shichen_info字段
+        """
+        # 首先使用原有方法解析基本信息
+        birth_info = await self.parse_birth_info(user_message)
+
+        if "error" in birth_info:
+            return birth_info
+
+        # V2增强：分析时间表达，识别known_range
+        time_analysis = self._analyze_time_expression(user_message)
+
+        # 更新time_certainty为V2版本
+        if time_analysis["status"] == "known_range":
+            birth_info["time_certainty"] = "known_range"
+            birth_info["time_range"] = time_analysis["range"]
+            birth_info["candidate_hours"] = time_analysis["candidates"]
+        elif time_analysis["status"] == "certain":
+            birth_info["time_certainty"] = "certain"
+        elif time_analysis["status"] == "uncertain":
+            birth_info["time_certainty"] = "uncertain"
+            birth_info["candidate_hours"] = time_analysis.get("candidates", [])
+
+        # 集成ShichenHandler
+        try:
+            from core.shichen_handler import ShichenHandler, ShichenInfo
+
+            handler = ShichenHandler()
+            shichen_info = handler.parse_time_input(
+                hour=birth_info.get("hour"),
+                minute=birth_info.get("minute"),
+                time_text=time_analysis.get("time_text"),
+                certainty=birth_info.get("time_certainty", "unknown")
+            )
+
+            birth_info["shichen_info"] = shichen_info.to_dict()
+            birth_info["shichen_display"] = handler.format_time_display(shichen_info)
+
+        except ImportError:
+            self.logger.warning("ShichenHandler not available, skipping integration")
+
+        self.logger.info(f"V2出生信息解析成功: {birth_info}")
+        return birth_info
+
+    def _analyze_time_expression(self, text: str) -> Dict[str, Any]:
+        """
+        分析时间表达方式，识别时间状态
+
+        Args:
+            text: 用户输入文本
+
+        Returns:
+            时间分析结果
+        """
+        result = {
+            "status": "unknown",
+            "time_text": None,
+            "range": None,
+            "candidates": []
+        }
+
+        # 时段范围定义
+        time_ranges = {
+            "凌晨": {"start": 0, "end": 5, "status": "known_range"},
+            "早上": {"start": 5, "end": 9, "status": "known_range"},
+            "早晨": {"start": 5, "end": 8, "status": "known_range"},
+            "上午": {"start": 9, "end": 12, "status": "known_range"},
+            "中午": {"start": 11, "end": 13, "status": "known_range"},
+            "下午": {"start": 13, "end": 18, "status": "known_range"},
+            "傍晚": {"start": 17, "end": 19, "status": "known_range"},
+            "黄昏": {"start": 17, "end": 19, "status": "known_range"},
+            "晚上": {"start": 19, "end": 23, "status": "known_range"},
+            "夜里": {"start": 21, "end": 24, "status": "known_range"},
+            "深夜": {"start": 23, "end": 2, "status": "known_range"},
+            "半夜": {"start": 23, "end": 3, "status": "known_range"},
+        }
+
+        # 模糊词（触发uncertain状态）
+        uncertain_words = ["大概", "大约", "左右", "可能", "好像", "差不多", "前后"]
+
+        # 精确时间模式
+        precise_patterns = [
+            r'(\d{1,2})[:：](\d{2})',     # 15:30
+            r'(\d{1,2})点(\d{1,2})分?(?!左右|多)',  # 3点30分（但不是3点左右）
+            r'(\d{1,2})点钟(?!左右)',      # 3点钟
+            r'(\d{1,2})点整',              # 3点整
+        ]
+
+        # 1. 检查是否是精确时间
+        for pattern in precise_patterns:
+            match = re.search(pattern, text)
+            if match:
+                hour = int(match.group(1))
+                if 0 <= hour <= 23:
+                    # 检查是否有模糊词
+                    has_uncertain = any(w in text for w in uncertain_words)
+                    if has_uncertain:
+                        result["status"] = "uncertain"
+                        result["candidates"] = self._get_adjacent_hours(hour)
+                    else:
+                        result["status"] = "certain"
+                    return result
+
+        # 2. 检查时段表达
+        for period, info in time_ranges.items():
+            if period in text:
+                result["status"] = info["status"]
+                result["time_text"] = period
+                result["range"] = {"start": info["start"], "end": info["end"], "name": period}
+
+                # 生成候选小时
+                if info["start"] <= info["end"]:
+                    result["candidates"] = list(range(info["start"], info["end"] + 1))
+                else:
+                    # 跨午夜
+                    result["candidates"] = list(range(info["start"], 24)) + list(range(0, info["end"] + 1))
+
+                # 检查是否有附加的精确时间（如"上午10点"）
+                hour_match = re.search(r'(\d{1,2})点', text)
+                if hour_match:
+                    hour = int(hour_match.group(1))
+                    if hour in result["candidates"]:
+                        # 时段+精确时间，检查是否有模糊词
+                        has_uncertain = any(w in text for w in uncertain_words)
+                        if has_uncertain:
+                            result["status"] = "uncertain"
+                        else:
+                            result["status"] = "certain"
+                return result
+
+        # 3. 检查普通小时表达（没有时段限定）
+        hour_match = re.search(r'(\d{1,2})点', text)
+        if hour_match:
+            hour = int(hour_match.group(1))
+            if 0 <= hour <= 23:
+                has_uncertain = any(w in text for w in uncertain_words)
+                if has_uncertain:
+                    result["status"] = "uncertain"
+                    result["candidates"] = self._get_adjacent_hours(hour)
+                else:
+                    result["status"] = "certain"
+                return result
+
+        # 4. 检查"不记得"等未知表达
+        unknown_words = ["不记得", "忘了", "不知道", "不确定", "没印象", "不清楚"]
+        if any(w in text for w in unknown_words):
+            result["status"] = "unknown"
+            return result
+
+        # 5. 默认未知
+        return result
+
+    def _get_adjacent_hours(self, hour: int) -> List[int]:
+        """获取相邻的候选小时"""
+        # 时辰是2小时制，返回当前时辰及相邻时辰的小时
+        candidates = set()
+
+        # 当前时辰（2小时块）
+        shichen_start = (hour // 2) * 2 - 1
+        if shichen_start < 0:
+            shichen_start = 23
+
+        for i in range(3):  # 当前及相邻
+            h = (shichen_start + i * 2) % 24
+            candidates.add(h)
+            candidates.add((h + 1) % 24)
+
+        return sorted(list(candidates))
+
+    async def enhance_time_from_events(
+        self,
+        birth_info: Dict[str, Any],
+        event_description: str,
+        event_year: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        根据历史事件增强时辰判断
+
+        通过用户提供的重大生活事件，尝试缩小时辰范围
+
+        Args:
+            birth_info: 当前解析的出生信息
+            event_description: 事件描述
+            event_year: 事件发生年份
+
+        Returns:
+            增强后的出生信息
+        """
+        if birth_info.get("time_certainty") == "certain":
+            # 已经确定，不需要增强
+            return birth_info
+
+        prompt = f"""你是一位经验丰富的命理师，擅长根据人生重大事件反推出生时辰。
+
+用户出生年月日: {birth_info.get('year')}年{birth_info.get('month')}月{birth_info.get('day')}日
+当前时辰范围: {birth_info.get('candidate_hours', '未知')}
+
+用户提供的事件：
+- 事件描述: {event_description}
+- 发生年份: {event_year if event_year else '未提供'}
+
+请分析这个事件与可能的出生时辰的关联，返回JSON：
+
+```json
+{{
+    "analysis": "事件分析",
+    "likely_hours": [最可能的小时列表],
+    "excluded_hours": [可以排除的小时列表],
+    "confidence": "高|中|低",
+    "reasoning": "推理依据"
+}}
+```
+
+命理推断参考：
+- 重大变动（搬家、换工作）常与驿马星相关
+- 婚恋事件与桃花、红鸾星相关
+- 财运变化与财星、禄神相关
+- 学业成就与文昌星相关
+- 健康问题与官煞、病符相关
+
+只返回JSON：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type="简单问题解答",
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            parsed = self.extract_json_from_response(response)
+
+            if parsed:
+                likely_hours = parsed.get("likely_hours", [])
+                excluded_hours = parsed.get("excluded_hours", [])
+                current_candidates = birth_info.get("candidate_hours", list(range(24)))
+
+                # 如果有可能的小时，取交集
+                if likely_hours:
+                    new_candidates = [h for h in current_candidates if h in likely_hours]
+                    if new_candidates:
+                        current_candidates = new_candidates
+
+                # 排除不可能的小时
+                if excluded_hours:
+                    current_candidates = [h for h in current_candidates if h not in excluded_hours]
+
+                # 更新birth_info
+                if current_candidates:
+                    birth_info["candidate_hours"] = current_candidates
+                    birth_info["event_inference"] = {
+                        "event": event_description,
+                        "year": event_year,
+                        "analysis": parsed.get("analysis"),
+                        "confidence": parsed.get("confidence"),
+                        "reasoning": parsed.get("reasoning")
+                    }
+
+                    # 如果范围缩小到1-2个小时，提高置信度
+                    if len(current_candidates) <= 2:
+                        birth_info["time_certainty"] = "uncertain"  # 从unknown升级
+                        birth_info["hour"] = current_candidates[0]
+
+                self.logger.info(f"事件推断完成，候选时辰: {current_candidates}")
+
+        except Exception as e:
+            self.logger.error(f"事件时辰推断失败: {e}")
+
+        return birth_info

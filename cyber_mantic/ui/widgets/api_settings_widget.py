@@ -331,7 +331,7 @@ class APIKeySettings(QGroupBox):
         self.test_buttons[api_id].setEnabled(False)
 
         # 获取默认模型
-        from cyber_mantic.api.task_router import SUPPORTED_APIS
+        from api.task_router import SUPPORTED_APIS
         api_info = SUPPORTED_APIS.get(api_id, {})
         model = api_info.get("default_model", "")
 
@@ -453,7 +453,7 @@ class APISettingsWidget(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply == QMessageBox.StandardButton.Yes:
-            from cyber_mantic.api.task_router import get_task_router
+            from api.task_router import get_task_router
             router = get_task_router()
             router.reset_to_default()
             self._load_config()
@@ -462,7 +462,7 @@ class APISettingsWidget(QWidget):
     def _save_config(self):
         """保存配置"""
         try:
-            from cyber_mantic.api.task_router import get_task_router
+            from api.task_router import get_task_router
             router = get_task_router()
 
             # 保存全局配置
@@ -486,7 +486,7 @@ class APISettingsWidget(QWidget):
     def _load_config(self):
         """加载配置"""
         try:
-            from cyber_mantic.api.task_router import get_task_router
+            from api.task_router import get_task_router
             router = get_task_router()
 
             # 加载全局配置

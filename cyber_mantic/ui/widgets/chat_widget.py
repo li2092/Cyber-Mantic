@@ -20,7 +20,7 @@ import os
 import re
 
 # 导入WebEngine组件（如果可用）
-from cyber_mantic.ui.widgets.markdown_webview import (
+from .markdown_webview import (
     MarkdownWebView, MarkdownTypewriter, is_webengine_available, WEBENGINE_AVAILABLE
 )
 
