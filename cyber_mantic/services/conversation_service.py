@@ -154,7 +154,8 @@ class ConversationService:
         stage = self.context.stage
 
         try:
-            if stage == ConversationStage.STAGE1_ICEBREAK:
+            # INIT 阶段也当作破冰阶段处理（用户可能在欢迎消息之前就发送了消息）
+            if stage in (ConversationStage.INIT, ConversationStage.STAGE1_ICEBREAK):
                 response = await self._handle_stage1(user_message, progress_callback)
             elif stage == ConversationStage.STAGE2_BASIC_INFO:
                 response = await self._handle_stage2(user_message, progress_callback)

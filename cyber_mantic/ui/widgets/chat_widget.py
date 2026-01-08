@@ -23,23 +23,44 @@ class AutoResizingTextBrowser(QTextBrowser):
         # 禁用滚动条
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # 启用自动换行
+        self.setLineWrapMode(QTextBrowser.LineWrapMode.WidgetWidth)
+        self.setWordWrapMode(self.document().defaultTextOption().wrapMode())
         # 监听文档内容变化
         self.document().contentsChanged.connect(self._adjust_height)
+        # 延迟调整高度，确保布局完成
+        self._pending_adjust = False
 
     def _adjust_height(self):
         """根据文档内容调整高度"""
+        # 设置文档宽度为控件宽度，确保正确换行
+        if self.width() > 0:
+            self.document().setTextWidth(self.width() - 24)  # 减去padding
         # 调整文档大小
         self.document().adjustSize()
         # 获取文档高度
         doc_height = self.document().size().height()
-        # 设置控件高度（文档高度 + 边距）
-        new_height = int(doc_height + 30)  # 30px for padding
-        self.setFixedHeight(max(new_height, 60))  # 最小60px
+        # 设置控件高度（文档高度 + 边距），增加边距以防止截断
+        new_height = int(doc_height + 40)  # 40px for padding
+        self.setMinimumHeight(max(new_height, 50))
+
+    def resizeEvent(self, event):
+        """控件大小改变时重新计算高度"""
+        super().resizeEvent(event)
+        # 延迟调整，避免频繁计算
+        if not self._pending_adjust:
+            self._pending_adjust = True
+            QTimer.singleShot(10, self._delayed_adjust)
+
+    def _delayed_adjust(self):
+        """延迟执行高度调整"""
+        self._pending_adjust = False
+        self._adjust_height()
 
     def sizeHint(self):
         """返回建议的大小"""
         doc_height = self.document().size().height()
-        return QSize(self.width(), int(doc_height + 30))
+        return QSize(self.width(), int(doc_height + 40))
 
     def wheelEvent(self, event):
         """
@@ -72,14 +93,94 @@ class ChatMessage:
         }
 
 
+class TypewriterAnimation:
+    """打字机动画控制器"""
+
+    def __init__(self, text_browser: QTextBrowser, content: str, is_markdown: bool = True,
+                 char_delay: int = 20, newline_delay: int = 200):
+        """
+        初始化打字机动画
+
+        Args:
+            text_browser: 要显示内容的TextBrowser
+            content: 要显示的完整内容
+            is_markdown: 是否为Markdown格式
+            char_delay: 每个字符的延迟（毫秒）
+            newline_delay: 换行时的额外延迟（毫秒）
+        """
+        self.text_browser = text_browser
+        self.full_content = content
+        self.is_markdown = is_markdown
+        self.char_delay = char_delay
+        self.newline_delay = newline_delay
+        self.current_index = 0
+        self.timer = QTimer()
+        self.timer.timeout.connect(self._type_next_char)
+        self._is_running = False
+
+    def start(self):
+        """开始打字动画"""
+        self._is_running = True
+        self.current_index = 0
+        self.text_browser.clear()
+        self.timer.start(self.char_delay)
+
+    def stop(self):
+        """停止动画并显示完整内容"""
+        self._is_running = False
+        self.timer.stop()
+        self._show_full_content()
+
+    def _type_next_char(self):
+        """显示下一个字符"""
+        if self.current_index >= len(self.full_content):
+            self.timer.stop()
+            self._is_running = False
+            return
+
+        # 获取当前字符
+        char = self.full_content[self.current_index]
+        self.current_index += 1
+
+        # 显示当前已输入的内容
+        current_text = self.full_content[:self.current_index]
+        if self.is_markdown:
+            self.text_browser.setMarkdown(current_text)
+        else:
+            escaped = current_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            html = escaped.replace('\n', '<br>')
+            self.text_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html}</div>')
+
+        # 如果是换行符，增加延迟
+        if char == '\n':
+            self.timer.setInterval(self.newline_delay)
+        else:
+            self.timer.setInterval(self.char_delay)
+
+    def _show_full_content(self):
+        """显示完整内容"""
+        if self.is_markdown:
+            self.text_browser.setMarkdown(self.full_content)
+        else:
+            escaped = self.full_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            html = escaped.replace('\n', '<br>')
+            self.text_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html}</div>')
+
+    def is_running(self) -> bool:
+        """返回动画是否正在运行"""
+        return self._is_running
+
+
 class ChatBubble(QFrame):
     """单条消息气泡"""
 
-    def __init__(self, message: ChatMessage, font_size: int = 10, parent=None):
+    def __init__(self, message: ChatMessage, font_size: int = 10, animated: bool = False, parent=None):
         super().__init__(parent)
         self.message = message
         self.font_size = font_size
+        self.animated = animated
         self.content_browser = None  # 保存内容浏览器引用
+        self.typewriter = None  # 打字机动画控制器
         self._setup_ui()
 
     def _setup_ui(self):
@@ -159,7 +260,18 @@ class ChatBubble(QFrame):
             self.content_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html_content}</div>')
         else:
             # AI/系统消息：Markdown渲染，左对齐
-            self.content_browser.setMarkdown(self.message.content)
+            if self.animated and self.message.content:
+                # 启动打字机动画
+                self.typewriter = TypewriterAnimation(
+                    self.content_browser,
+                    self.message.content,
+                    is_markdown=True,
+                    char_delay=20,
+                    newline_delay=200
+                )
+                self.typewriter.start()
+            else:
+                self.content_browser.setMarkdown(self.message.content)
 
         layout.addWidget(self.content_browser)
 
@@ -172,6 +284,15 @@ class ChatBubble(QFrame):
                 border: none;
             }
         """)
+
+    def stop_animation(self):
+        """停止打字动画，立即显示完整内容"""
+        if self.typewriter and self.typewriter.is_running():
+            self.typewriter.stop()
+
+    def is_animating(self) -> bool:
+        """检查是否正在播放动画"""
+        return self.typewriter is not None and self.typewriter.is_running()
 
     def update_font_size(self, font_size: int):
         """更新字体大小"""
@@ -234,7 +355,7 @@ class ChatWidget(QWidget):
             }
         """)
 
-    def add_message(self, role: MessageRole, content: str, auto_scroll: bool = True):
+    def add_message(self, role: MessageRole, content: str, auto_scroll: bool = True, animated: bool = False):
         """
         添加一条消息
 
@@ -242,6 +363,7 @@ class ChatWidget(QWidget):
             role: 消息角色
             content: 消息内容（支持Markdown）
             auto_scroll: 是否自动滚动到底部
+            animated: 是否使用打字机效果显示（仅对AI消息有效）
         """
         # 调试：记录消息内容
         from utils.logger import get_logger
@@ -255,8 +377,8 @@ class ChatWidget(QWidget):
         message = ChatMessage(role, content)
         self.messages.append(message)
 
-        # 创建气泡，传入当前字体大小
-        bubble = ChatBubble(message, self.font_size)
+        # 创建气泡，传入当前字体大小和动画设置
+        bubble = ChatBubble(message, self.font_size, animated=animated)
 
         # 插入到布局中（在stretch之前）
         count = self.messages_layout.count()
@@ -270,9 +392,15 @@ class ChatWidget(QWidget):
         """添加用户消息"""
         self.add_message(MessageRole.USER, content)
 
-    def add_assistant_message(self, content: str):
-        """添加AI助手消息"""
-        self.add_message(MessageRole.ASSISTANT, content)
+    def add_assistant_message(self, content: str, animated: bool = True):
+        """
+        添加AI助手消息
+
+        Args:
+            content: 消息内容
+            animated: 是否使用打字机效果，默认启用
+        """
+        self.add_message(MessageRole.ASSISTANT, content, animated=animated)
 
     def add_system_message(self, content: str):
         """添加系统消息"""
