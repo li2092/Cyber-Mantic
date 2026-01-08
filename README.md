@@ -14,7 +14,7 @@
 
 - 但整体规划是Deepseek做的；
 - 原型MVP是Claude理解后输出的；
-- Gemini GEM做的用户测试（https://gemini.google.com/gem/1kbUTFvqGXkZTji-q4Ldicu38YIsriUXd?usp=sharing）；
+- Gemini GEM做的用户测试（ https://gemini.google.com/gem/1kbUTFvqGXkZTji-q4Ldicu38YIsriUXd?usp=sharing ）；
 - 因为大模型计算术数理论时不准，最后用Claude Code网页版落地的这个产品；
 - 我想知道，当我们剥离神秘主义的外衣，用代码精确复现每一步推演，用多理论交叉验证每一个结论，这套系统会呈现出怎样的面貌；
 - 希望让更多人有机会理解，中国先祖们是如何观察这片星空、思考这个世界、编码这条时间之河的；
