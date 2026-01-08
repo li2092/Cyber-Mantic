@@ -629,7 +629,108 @@ def calculate_with_true_solar_time(
 
 ---
 
-## 三、待探索问题
+## 三、阶段五实现记录（2026-01-08）
+
+### 5.1 ShichenHandler 时辰处理器 ✅
+
+**文件**: `cyber_mantic/core/shichen_handler.py` (635行)
+
+**核心组件**:
+- `ShichenStatus` 枚举：CERTAIN/KNOWN_RANGE/UNCERTAIN/UNKNOWN
+- `ShichenRange` 数据类：时辰范围定义
+- `ShichenInfo` 数据类：时辰信息封装
+- `ShichenHandler` 类：统一时辰处理器
+
+**关键功能**:
+```python
+# 时段范围映射
+TIME_PERIOD_RANGES = {
+    "凌晨": ShichenRange(0, 5, "凌晨"),
+    "上午": ShichenRange(9, 12, "上午"),
+    "下午": ShichenRange(13, 18, "下午"),
+    # ...
+}
+
+# 五鼠遁日诀
+HOUR_GAN_BASE = {
+    "甲": 0, "己": 0,  # 从甲开始
+    "乙": 2, "庚": 2,  # 从丙开始
+    # ...
+}
+```
+
+### 5.2 三柱分析模式 ✅
+
+**文件**: `cyber_mantic/theories/bazi/calculator.py`
+
+**新增方法**:
+- `calculate_three_pillar()` - 无时辰时的降级计算
+- 返回置信度0.65，包含局限性说明和推荐补充理论
+
+### 5.3 并行计算模式 ✅
+
+**新增方法**:
+- `calculate_parallel_bazi()` - 多时辰候选并行计算
+- `_analyze_hour_differences()` - 分析时辰差异影响
+- `_generate_hour_recommendation()` - 生成时辰选择建议
+- `calculate_with_shichen_info()` - 根据ShichenInfo智能选择计算模式
+
+### 5.5 NLP解析扩展 ✅
+
+**文件**: `cyber_mantic/services/conversation/nlp_parser.py`
+
+**新增方法**:
+- `parse_birth_info_v2()` - V2增强版解析
+- `_analyze_time_expression()` - 识别known_range状态
+- `enhance_time_from_events()` - 基于事件增强时辰判断
+
+### 5.6 真太阳时校正 ✅
+
+**文件**: `cyber_mantic/utils/time_utils.py`
+
+**新增组件**:
+- `CITY_LONGITUDES` - 50+中国城市经度库
+- `TrueSolarTimeCalculator` 类：
+  - `get_longitude()` - 获取城市经度
+  - `calculate()` - 计算真太阳时
+  - `should_use_true_solar_time()` - 判断是否需要校正
+  - `get_correction_for_birth()` - 出生时间校正
+
+---
+
+## 四、代码审查记录（2026-01-08）
+
+### 审查范围
+
+| 模块 | 文件 | 状态 | 备注 |
+|------|------|------|------|
+| 核心 | shichen_handler.py | ✅ | `narrow_by_event` 为TODO stub |
+| 理论 | bazi/calculator.py | ✅ | V2增强完整 |
+| 服务 | nlp_parser.py | ✅ | V2增强完整 |
+| 工具 | time_utils.py | ✅ | 真太阳时完整 |
+| 仲裁 | arbitration_system.py | ✅ | AI+规则双模式 |
+| 路由 | task_router.py | ✅ | 支持9种API |
+| UI | chat_widget.py | ✅ | 导入修复 |
+| UI | verification_widget.py | ✅ | 导入修复 |
+| UI | api_settings_widget.py | ✅ | 导入修复 |
+
+### 已修复问题
+
+1. **绝对导入错误**：
+   - 问题：`from cyber_mantic.xxx` 导致启动失败
+   - 原因：新创建文件使用了绝对导入
+   - 修复：改为相对导入 `from .xxx` 或 `from xxx`
+   - 影响文件：chat_widget.py, verification_widget.py, api_settings_widget.py
+
+### 待完善项目
+
+1. **事件验证推断** (5.4)：`shichen_handler.narrow_by_event()` 是TODO stub
+2. **推演UI调整** (5.7)：需要添加经度输入和真太阳时提示
+3. **仲裁结果展示** (4.3)：UI展示仲裁过程待完善
+
+---
+
+## 五、待探索问题
 
 1. **左侧导航栏动画效果**：收起/展开动画如何实现最流畅？
 2. **快速结论卡片进行中动画**：用QPropertyAnimation还是CSS动画？
@@ -638,7 +739,7 @@ def calculate_with_true_solar_time(
 
 ---
 
-## 四、参考资料
+## 六、参考资料
 
 1. PRD文档：`docs/prd_cyber_mantic.md`
 2. 当前问道任务规划：`docs/wendao_task_plan.md`

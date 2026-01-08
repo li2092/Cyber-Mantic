@@ -2,7 +2,7 @@
 
 > 更新时间：2026-01-08
 > 负责人：Claude + 大魔王
-> 状态：规划中
+> 状态：阶段五完成 ✅
 
 ---
 
@@ -303,38 +303,38 @@ SUPPORTED_APIS = {
 | 2.5 MBTI匹配算法 | theory_selector.py实现 | 0.5天 | 2.4 | ✅ |
 | 2.6 MBTI对报告影响 | 个性化表达调整 | 1天 | 2.5 | ✅ |
 
-### 阶段三：动态验证 + API拓展（2周）
+### 阶段三：动态验证 + API拓展（2周）✅ 已完成
 
-| 任务 | 描述 | 工时 | 依赖 |
-|------|------|------|------|
-| 3.1 动态问题生成 | DynamicVerificationGenerator | 1.5天 | 无 |
-| 3.2 验证问题UI | 对话中展示验证问题 | 1天 | 3.1 |
-| 3.3 验证结果处理 | 更新置信度逻辑 | 1天 | 3.2 |
-| 3.4 新增API客户端 | qwen/doubao/baichuan/glm | 2天 | 无 |
-| 3.5 环节配置数据结构 | API_TASK_CONFIG | 0.5天 | 3.4 |
-| 3.6 配置持久化 | 保存到config.json | 0.5天 | 3.5 |
+| 任务 | 描述 | 工时 | 依赖 | 状态 |
+|------|------|------|------|------|
+| 3.1 动态问题生成 | DynamicVerificationGenerator | 1.5天 | 无 | ✅ |
+| 3.2 验证问题UI | 对话中展示验证问题 | 1天 | 3.1 | ✅ |
+| 3.3 验证结果处理 | 更新置信度逻辑 | 1天 | 3.2 | ✅ |
+| 3.4 新增API客户端 | qwen/doubao/baichuan/glm + OpenRouter | 2天 | 无 | ✅ |
+| 3.5 环节配置数据结构 | TaskRouter + TaskConfig | 0.5天 | 3.4 | ✅ |
+| 3.6 配置持久化 | 保存到api_task_config.json | 0.5天 | 3.5 | ✅ |
 
-### 阶段四：仲裁系统 + API配置UI（2周）
+### 阶段四：仲裁系统 + API配置UI（2周）✅ 已完成
 
-| 任务 | 描述 | 工时 | 依赖 |
-|------|------|------|------|
-| 4.1 ArbitrationSystem | 仲裁系统核心逻辑 | 1.5天 | 无 |
-| 4.2 仲裁触发逻辑 | 冲突解决器集成 | 1天 | 4.1 |
-| 4.3 仲裁结果展示 | UI展示仲裁过程 | 1天 | 4.2 |
-| 4.4 API设置界面 | 全局+分环节配置UI | 2天 | 3.5 |
-| 4.5 连接测试功能 | 测试各API连通性 | 0.5天 | 4.4 |
+| 任务 | 描述 | 工时 | 依赖 | 状态 |
+|------|------|------|------|------|
+| 4.1 ArbitrationSystem | 仲裁系统核心逻辑 | 1.5天 | 无 | ✅ |
+| 4.2 仲裁触发逻辑 | 冲突解决器集成 | 1天 | 4.1 | ✅ |
+| 4.3 仲裁结果展示 | UI展示仲裁过程 | 1天 | 4.2 | ⏳ 待完善 |
+| 4.4 API设置界面 | 全局+分环节配置UI | 2天 | 3.5 | ✅ |
+| 4.5 连接测试功能 | 测试各API连通性 | 0.5天 | 4.4 | ✅ |
 
-### 阶段五：时辰智能处理 + 真太阳时（3周）
+### 阶段五：时辰智能处理 + 真太阳时（3周）✅ 已完成
 
-| 任务 | 描述 | 工时 | 依赖 |
-|------|------|------|------|
-| 5.1 ShichenHandler | 时辰状态处理器 | 1.5天 | 无 |
-| 5.2 三柱分析模式 | 八字降级计算 | 1.5天 | 5.1 |
-| 5.3 并行计算模式 | 多时辰候选分析 | 2天 | 5.1 |
-| 5.4 事件验证推断 | 基于历史事件缩小范围 | 2天 | 5.1 |
-| 5.5 NLP解析扩展 | 识别known_range状态 | 1天 | 5.1 |
-| 5.6 真太阳时校正 | 推演模块计算逻辑 | 1.5天 | 无 |
-| 5.7 推演UI调整 | 经度输入+提示 | 0.5天 | 5.6 |
+| 任务 | 描述 | 工时 | 依赖 | 状态 |
+|------|------|------|------|------|
+| 5.1 ShichenHandler | 时辰状态处理器 | 1.5天 | 无 | ✅ |
+| 5.2 三柱分析模式 | 八字降级计算 | 1.5天 | 5.1 | ✅ |
+| 5.3 并行计算模式 | 多时辰候选分析 | 2天 | 5.1 | ✅ |
+| 5.4 事件验证推断 | 基于历史事件缩小范围 | 2天 | 5.1 | ⏳ TODO stub |
+| 5.5 NLP解析扩展 | 识别known_range状态 | 1天 | 5.1 | ✅ |
+| 5.6 真太阳时校正 | 推演模块计算逻辑 | 1.5天 | 无 | ✅ |
+| 5.7 推演UI调整 | 经度输入+提示 | 0.5天 | 5.6 | ⏳ 待实现 |
 
 ### 阶段六：测试优化（1周）
 
@@ -369,31 +369,46 @@ SUPPORTED_APIS = {
 
 ## 六、关键文件清单
 
-### 新增文件
+### 新增文件（V2已完成）
 
 ```
 cyber_mantic/ui/
 ├── components/
-│   ├── sidebar.py              # 左侧导航栏
-│   ├── nav_item.py             # 导航项
-│   └── logo_header.py          # Logo头部
+│   ├── sidebar.py              # 左侧导航栏 ✅
+│   ├── nav_item.py             # 导航项 ✅
+│   └── __init__.py             # 组件模块 ✅
 ├── widgets/
-│   ├── progress_panel.py       # 进度面板
-│   ├── quick_result_card.py    # 快速结论卡片
-│   └── info_panel.py           # 信息面板（重构）
+│   ├── quick_result_card.py    # 快速结论卡片 ✅
+│   ├── chat_widget.py          # 聊天组件（重构）✅
+│   ├── markdown_webview.py     # Markdown渲染 ✅
+│   ├── verification_widget.py  # 验证问题组件 ✅
+│   └── api_settings_widget.py  # API设置组件 ✅
 
 cyber_mantic/core/
-├── arbitration_system.py       # 仲裁系统
-├── shichen_handler.py          # 时辰处理器
-└── dynamic_verification.py     # 动态验证生成
+├── arbitration_system.py       # 仲裁系统 ✅
+├── shichen_handler.py          # 时辰处理器 ✅
+├── dynamic_verification.py     # 动态验证生成 ✅
+├── theory_selector.py          # 理论选择器（含MBTI矩阵）✅
+└── __init__.py                 # 核心模块导出 ✅
 
 cyber_mantic/api/
 ├── clients/
-│   ├── qwen_client.py          # 通义千问
-│   ├── doubao_client.py        # 字节豆包
-│   ├── baichuan_client.py      # 百川
-│   └── glm_client.py           # 智谱清言
-└── task_router.py              # 环节级路由
+│   ├── qwen_client.py          # 通义千问 ✅
+│   ├── doubao_client.py        # 字节豆包 ✅
+│   ├── baichuan_client.py      # 百川 ✅
+│   ├── glm_client.py           # 智谱清言 ✅
+│   └── openrouter_client.py    # OpenRouter聚合 ✅
+├── task_router.py              # 环节级路由 ✅
+└── unified_client.py           # 统一客户端 ✅
+
+cyber_mantic/utils/
+└── time_utils.py               # 时间工具（含真太阳时）✅
+
+cyber_mantic/services/conversation/
+└── nlp_parser.py               # NLP解析器（V2增强）✅
+
+cyber_mantic/theories/bazi/
+└── calculator.py               # 八字计算器（含三柱/并行）✅
 ```
 
 ### 修改文件
