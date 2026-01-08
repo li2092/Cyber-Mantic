@@ -11,6 +11,12 @@ from .constants import (
     JUDGMENT_KEYWORDS,
     get_shichen
 )
+from .dynamic_verification import (
+    DynamicVerificationGenerator,
+    VerificationQuestion,
+    VerificationResult,
+    generate_verification_questions
+)
 
 __all__ = [
     'DecisionEngine',
@@ -20,5 +26,9 @@ __all__ = [
     'TheoryType',
     'ConflictLevel',
     'JUDGMENT_KEYWORDS',
-    'get_shichen'
+    'get_shichen',
+    'DynamicVerificationGenerator',
+    'VerificationQuestion',
+    'VerificationResult',
+    'generate_verification_questions'
 ]
