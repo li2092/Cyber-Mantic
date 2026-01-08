@@ -272,8 +272,10 @@ if HAS_PYQT6:
                     self.analysis_tab.analysis_service = self.analysis_service
                 if self.ai_conversation_tab:
                     self.ai_conversation_tab.api_manager = self.api_manager
+                    # 同时更新 conversation_service，确保使用新的 api_manager 配置
+                    self.ai_conversation_tab.conversation_service = ConversationService(self.api_manager)
 
-                self.logger.info("配置已重新加载，服务层已更新")
+                self.logger.info(f"配置已重新加载，优先API: {self.api_manager.primary_api}")
             except Exception as e:
                 self.error_handler.handle_error(e, "重新加载配置")
 
