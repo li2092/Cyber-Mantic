@@ -27,9 +27,40 @@ class AutoResizingTextBrowser(QTextBrowser):
         self.setLineWrapMode(QTextBrowser.LineWrapMode.WidgetWidth)
         self.setWordWrapMode(self.document().defaultTextOption().wrapMode())
         # 监听文档内容变化
-        self.document().contentsChanged.connect(self._adjust_height)
+        self.document().contentsChanged.connect(self._on_content_changed)
         # 延迟调整高度，确保布局完成
         self._pending_adjust = False
+        # 打字动画模式标志 - 打字时不频繁调整高度
+        self._typing_mode = False
+        # 最后一次调整的高度
+        self._last_height = 50
+
+    def set_typing_mode(self, enabled: bool):
+        """设置打字模式（打字时减少高度调整频率）"""
+        self._typing_mode = enabled
+        if not enabled:
+            # 退出打字模式时，调整到最终高度
+            self._adjust_height()
+
+    def _on_content_changed(self):
+        """内容变化时的处理"""
+        if self._typing_mode:
+            # 打字模式下，只增加高度，不减少（避免跳动）
+            self._adjust_height_grow_only()
+        else:
+            self._adjust_height()
+
+    def _adjust_height_grow_only(self):
+        """只增加高度的调整（用于打字动画）"""
+        if self.width() > 0:
+            self.document().setTextWidth(self.width() - 24)
+        self.document().adjustSize()
+        doc_height = self.document().size().height()
+        new_height = int(doc_height + 40)
+        # 只有当新高度大于当前高度时才调整
+        if new_height > self._last_height:
+            self._last_height = new_height
+            self.setMinimumHeight(new_height)
 
     def _adjust_height(self):
         """根据文档内容调整高度"""
@@ -42,13 +73,14 @@ class AutoResizingTextBrowser(QTextBrowser):
         doc_height = self.document().size().height()
         # 设置控件高度（文档高度 + 边距），增加边距以防止截断
         new_height = int(doc_height + 40)  # 40px for padding
-        self.setMinimumHeight(max(new_height, 50))
+        self._last_height = max(new_height, 50)
+        self.setMinimumHeight(self._last_height)
 
     def resizeEvent(self, event):
         """控件大小改变时重新计算高度"""
         super().resizeEvent(event)
         # 延迟调整，避免频繁计算
-        if not self._pending_adjust:
+        if not self._pending_adjust and not self._typing_mode:
             self._pending_adjust = True
             QTimer.singleShot(10, self._delayed_adjust)
 
@@ -94,28 +126,30 @@ class ChatMessage:
 
 
 class TypewriterAnimation:
-    """打字机动画控制器"""
+    """打字机动画控制器 - 平滑逐字显示，避免文字跳动"""
 
-    def __init__(self, text_browser: QTextBrowser, content: str, is_markdown: bool = True,
-                 char_delay: int = 20, newline_delay: int = 200):
+    def __init__(self, text_browser, content: str, is_markdown: bool = True,
+                 char_delay: int = 15, newline_delay: int = 150, chunk_size: int = 3):
         """
         初始化打字机动画
 
         Args:
-            text_browser: 要显示内容的TextBrowser
+            text_browser: 要显示内容的TextBrowser (AutoResizingTextBrowser)
             content: 要显示的完整内容
             is_markdown: 是否为Markdown格式
-            char_delay: 每个字符的延迟（毫秒）
+            char_delay: 每组字符的延迟（毫秒）
             newline_delay: 换行时的额外延迟（毫秒）
+            chunk_size: 每次显示的字符数（减少渲染频率）
         """
         self.text_browser = text_browser
         self.full_content = content
         self.is_markdown = is_markdown
         self.char_delay = char_delay
         self.newline_delay = newline_delay
+        self.chunk_size = chunk_size
         self.current_index = 0
         self.timer = QTimer()
-        self.timer.timeout.connect(self._type_next_char)
+        self.timer.timeout.connect(self._type_next_chunk)
         self._is_running = False
 
     def start(self):
@@ -123,24 +157,45 @@ class TypewriterAnimation:
         self._is_running = True
         self.current_index = 0
         self.text_browser.clear()
+        # 启用打字模式，减少高度调整频率
+        if hasattr(self.text_browser, 'set_typing_mode'):
+            self.text_browser.set_typing_mode(True)
         self.timer.start(self.char_delay)
 
     def stop(self):
         """停止动画并显示完整内容"""
         self._is_running = False
         self.timer.stop()
+        # 关闭打字模式
+        if hasattr(self.text_browser, 'set_typing_mode'):
+            self.text_browser.set_typing_mode(False)
         self._show_full_content()
 
-    def _type_next_char(self):
-        """显示下一个字符"""
+    def _type_next_chunk(self):
+        """显示下一组字符"""
         if self.current_index >= len(self.full_content):
             self.timer.stop()
             self._is_running = False
+            # 关闭打字模式
+            if hasattr(self.text_browser, 'set_typing_mode'):
+                self.text_browser.set_typing_mode(False)
+            # 最终渲染完整Markdown
+            self._show_full_content()
             return
 
-        # 获取当前字符
-        char = self.full_content[self.current_index]
-        self.current_index += 1
+        # 计算本次显示到哪个位置
+        next_index = min(self.current_index + self.chunk_size, len(self.full_content))
+
+        # 检查是否遇到换行符，如果是则在换行处停止
+        chunk = self.full_content[self.current_index:next_index]
+        newline_pos = chunk.find('\n')
+        if newline_pos != -1:
+            next_index = self.current_index + newline_pos + 1
+            has_newline = True
+        else:
+            has_newline = False
+
+        self.current_index = next_index
 
         # 显示当前已输入的内容
         current_text = self.full_content[:self.current_index]
@@ -151,8 +206,8 @@ class TypewriterAnimation:
             html = escaped.replace('\n', '<br>')
             self.text_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html}</div>')
 
-        # 如果是换行符，增加延迟
-        if char == '\n':
+        # 如果遇到换行符，增加延迟
+        if has_newline:
             self.timer.setInterval(self.newline_delay)
         else:
             self.timer.setInterval(self.char_delay)
@@ -254,10 +309,16 @@ class ChatBubble(QFrame):
         # 根据角色设置内容格式和对齐方式
         if self.message.role == MessageRole.USER:
             # 用户消息：纯文本显示（保留换行符），右对齐
-            # 将换行符转换为HTML格式，并设置右对齐
             escaped_content = self.message.content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             html_content = escaped_content.replace('\n', '<br>')
-            self.content_browser.setHtml(f'<div style="text-align: right; white-space: pre-wrap;">{html_content}</div>')
+            # 使用完整的HTML结构确保右对齐生效
+            full_html = f'''
+            <html>
+            <head><style>body {{ text-align: right; }}</style></head>
+            <body><p style="text-align: right; margin: 0; white-space: pre-wrap;">{html_content}</p></body>
+            </html>
+            '''
+            self.content_browser.setHtml(full_html)
         else:
             # AI/系统消息：Markdown渲染，左对齐
             if self.animated and self.message.content:

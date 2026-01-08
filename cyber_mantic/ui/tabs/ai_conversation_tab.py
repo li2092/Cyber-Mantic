@@ -124,14 +124,15 @@ class AIConversationTab(QWidget):
 
         # 右侧：关键信息显示
         right_widget = self._create_right_panel()
-        right_widget.setMinimumWidth(350)  # 设置右侧最小宽度，防止被挤压
+        right_widget.setMinimumWidth(280)  # 调窄右侧最小宽度
+        right_widget.setMaximumWidth(380)  # 限制右侧最大宽度
         splitter.addWidget(right_widget)
 
-        # 设置初始比例（左侧55%，右侧45%） - 增加右侧宽度以便查看关键信息
-        splitter.setStretchFactor(0, 55)
-        splitter.setStretchFactor(1, 45)
-        # 设置初始大小（如果窗口宽度为1200，左600右480）
-        splitter.setSizes([650, 450])
+        # 设置初始比例（左侧65%，右侧35%） - 给对话区域更多空间
+        splitter.setStretchFactor(0, 65)
+        splitter.setStretchFactor(1, 35)
+        # 设置初始大小（如果窗口宽度为1200，左820右380）
+        splitter.setSizes([820, 380])
 
         layout.addWidget(splitter)
         self.setLayout(layout)
@@ -656,7 +657,11 @@ class AIConversationTab(QWidget):
 
         # 已选理论
         if context.selected_theories:
-            theories_str = "、".join(context.selected_theories)
+            # selected_theories 可能是字典列表或字符串列表
+            if context.selected_theories and isinstance(context.selected_theories[0], dict):
+                theories_str = "、".join([t.get('theory', str(t)) for t in context.selected_theories])
+            else:
+                theories_str = "、".join(str(t) for t in context.selected_theories)
             status_parts.append(f"**已选理论**: {theories_str}")
 
         # 已完成的分析
