@@ -122,7 +122,7 @@ class ExportService:
 
 - **问题类型**: {report.user_input_summary.get('question_type', '未知')}
 - **问题描述**: {report.user_input_summary.get('question_description', '')}
-- **使用理论**: {', '.join(report.selected_theories)}
+- **使用理论**: {', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in report.selected_theories])}
 - **综合置信度**: {report.overall_confidence:.0%}
 
 ---

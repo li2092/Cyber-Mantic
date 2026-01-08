@@ -96,7 +96,7 @@ class ReportGenerator:
 
 - **分析时间**：{current_time}
 - **所问事项**：{self.context.question_category} - {self.context.question_description}
-- **使用理论**：{', '.join(self.context.selected_theories)}
+- **使用理论**：{', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories])}
 - **综合置信度**：{self.calculate_overall_confidence()}%
 
 ---
@@ -132,7 +132,7 @@ class ReportGenerator:
 - **MBTI**：{self.context.mbti_type or '未知'}
 
 ## 使用理论
-{', '.join(self.context.selected_theories)}
+{', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories])}
 
 ## 分析数据摘要
 {analysis_summary}
@@ -355,14 +355,14 @@ class ReportGenerator:
 
 - **分析时间**：{current_time}
 - **所问事项**：{self.context.question_category} - {self.context.question_description}
-- **使用理论**：{', '.join(self.context.selected_theories)}
+- **使用理论**：{', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories])}
 - **综合置信度**：{self.calculate_overall_confidence()}%
 
 ---
 
 ## 🎯 核心结论
 
-基于{', '.join(self.context.selected_theories)}的综合分析，我们为您提供了以下参考建议。
+基于{', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories])}的综合分析，我们为您提供了以下参考建议。
 
 ## 📊 分析摘要
 
@@ -453,7 +453,7 @@ class ConversationExporter:
 
 ## 🔮 分析概况
 
-**使用理论**：{', '.join(self.context.selected_theories) if self.context.selected_theories else '未选择'}
+**使用理论**：{', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories]) if self.context.selected_theories else '未选择'}
 
 **分析状态**：
 - 小六壬：{'✓ 已分析' if self.context.xiaoliu_result else '✗ 未分析'}

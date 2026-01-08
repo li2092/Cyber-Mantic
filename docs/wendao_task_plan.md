@@ -35,6 +35,9 @@
 | **缺少ziwei_result属性** | `conversation/context.py` | ✅ 已修复 |
 | **紫微斗数计算未执行** | `conversation_service.py` | ✅ 已修复 |
 | **输入框回车发送** | `ai_conversation_tab.py` | ✅ 已修复 |
+| **join(selected_theories)字典列表错误** | `report_generator.py` (5处) | ✅ 已修复 |
+| **join(selected_theories)字典列表错误** | `qa_handler.py` (1处) | ✅ 已修复 |
+| **join(selected_theories)字典列表错误** | `export_service.py` (1处) | ✅ 已修复 |
 
 ### 待测试验证
 
@@ -128,6 +131,11 @@ cyber_mantic/api/
 2. **unhashable type: 'dict'**
    - 原因：`_adjust_confidence`用字典作为dict键
    - 修复：从字典中提取theory字段
+
+3. **sequence item 0: expected str instance, dict found**
+   - 原因：多处使用 `', '.join(selected_theories)` 但 `selected_theories` 是字典列表
+   - 位置：`report_generator.py` (5处)、`qa_handler.py` (1处)、`export_service.py` (1处)
+   - 修复：使用列表推导式提取 theory 字段：`[t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in selected_theories]`
 
 ### 待关注
 
