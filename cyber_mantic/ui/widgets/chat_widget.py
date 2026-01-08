@@ -17,6 +17,101 @@ from enum import Enum
 from datetime import datetime
 from typing import List, Optional
 import os
+import re
+
+
+def escape_html(text: str) -> str:
+    """转义HTML特殊字符"""
+    return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def process_inline_markdown(text: str) -> str:
+    """处理行内Markdown格式（加粗、斜体、代码等）"""
+    # 先转义HTML
+    text = escape_html(text)
+
+    # 加粗 **text** 或 __text__
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong style="color: #E2E8F0;">\1</strong>', text)
+    text = re.sub(r'__(.+?)__', r'<strong style="color: #E2E8F0;">\1</strong>', text)
+
+    # 斜体 *text* 或 _text_（注意不要和加粗冲突）
+    text = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<em>\1</em>', text)
+    text = re.sub(r'(?<!_)_([^_]+?)_(?!_)', r'<em>\1</em>', text)
+
+    # 行内代码 `code`
+    text = re.sub(r'`([^`]+?)`', r'<code style="background: #1E1E2E; padding: 2px 6px; border-radius: 4px; font-family: monospace;">\1</code>', text)
+
+    return text
+
+
+def markdown_to_styled_html(content: str) -> str:
+    """将Markdown转换为带样式的HTML（保持打字动画和最终效果一致）"""
+    if not content:
+        return ""
+
+    lines = content.split('\n')
+    html_lines = []
+    in_code_block = False
+
+    for line in lines:
+        # 处理代码块
+        if line.strip().startswith('```'):
+            if in_code_block:
+                html_lines.append('</pre>')
+                in_code_block = False
+            else:
+                html_lines.append('<pre style="background: #1E1E2E; padding: 8px; border-radius: 6px; margin: 4px 0; overflow-x: auto; font-family: monospace; font-size: 0.9em;">')
+                in_code_block = True
+            continue
+
+        if in_code_block:
+            html_lines.append(escape_html(line) + '\n')
+            continue
+
+        # 处理标题
+        if line.startswith('### '):
+            text = line[4:]
+            html_lines.append(f'<p style="font-weight: bold; font-size: 1.1em; margin: 8px 0 4px 0; color: #A78BFA;">{escape_html(text)}</p>')
+        elif line.startswith('## '):
+            text = line[3:]
+            html_lines.append(f'<p style="font-weight: bold; font-size: 1.2em; margin: 10px 0 6px 0; color: #C4B5FD;">{escape_html(text)}</p>')
+        elif line.startswith('# '):
+            text = line[2:]
+            html_lines.append(f'<p style="font-weight: bold; font-size: 1.3em; margin: 12px 0 8px 0; color: #DDD6FE;">{escape_html(text)}</p>')
+        # 处理列表项
+        elif line.strip().startswith('- ') or line.strip().startswith('* '):
+            indent = len(line) - len(line.lstrip())
+            text = line.strip()[2:]
+            text = process_inline_markdown(text)
+            margin_left = 16 + (indent // 2) * 12
+            html_lines.append(f'<p style="margin: 2px 0 2px {margin_left}px;">• {text}</p>')
+        elif re.match(r'^\d+\.\s', line.strip()):
+            # 数字列表
+            match = re.match(r'^(\d+)\.\s(.*)$', line.strip())
+            if match:
+                num = match.group(1)
+                text = process_inline_markdown(match.group(2))
+                html_lines.append(f'<p style="margin: 2px 0 2px 16px;">{num}. {text}</p>')
+        # 处理引用
+        elif line.startswith('> '):
+            text = process_inline_markdown(line[2:])
+            html_lines.append(f'<p style="border-left: 3px solid #6366F1; padding-left: 12px; margin: 4px 0; color: #94A3B8; font-style: italic;">{text}</p>')
+        # 处理分割线
+        elif line.strip() in ('---', '***', '___'):
+            html_lines.append('<hr style="border: none; border-top: 1px solid #4B5563; margin: 8px 0;">')
+        # 普通段落
+        elif line.strip():
+            text = process_inline_markdown(line)
+            html_lines.append(f'<p style="margin: 4px 0; line-height: 1.6;">{text}</p>')
+        else:
+            # 空行
+            html_lines.append('<p style="margin: 4px 0;"></p>')
+
+    # 如果代码块没有关闭，强制关闭
+    if in_code_block:
+        html_lines.append('</pre>')
+
+    return '<div style="line-height: 1.5;">' + ''.join(html_lines) + '</div>'
 
 
 class AutoResizingTextBrowser(QTextBrowser):
@@ -245,11 +340,13 @@ class TypewriterAnimation:
             self.timer.setInterval(self.char_delay)
 
     def _show_full_content(self):
-        """显示完整内容（Markdown渲染）"""
+        """显示完整内容（优化的Markdown渲染）"""
         if self.is_markdown:
-            self.text_browser.setMarkdown(self.full_content)
+            # 使用全局函数进行优化的HTML渲染
+            html = markdown_to_styled_html(self.full_content)
+            self.text_browser.setHtml(html)
         else:
-            escaped = self.full_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            escaped = escape_html(self.full_content)
             html = escaped.replace('\n', '<br>')
             self.text_browser.setHtml(f'<div style="white-space: pre-wrap;">{html}</div>')
 
@@ -438,7 +535,9 @@ class ChatBubble(QFrame):
                 )
                 self.typewriter.start()
             else:
-                self.content_browser.setMarkdown(self.message.content)
+                # 使用优化的HTML渲染
+                html = markdown_to_styled_html(self.message.content)
+                self.content_browser.setHtml(html)
 
             bubble_layout.addWidget(self.content_browser)
 

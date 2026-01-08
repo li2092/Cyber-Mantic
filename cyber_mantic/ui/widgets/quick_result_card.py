@@ -277,6 +277,8 @@ class QuickResultPanel(QFrame):
 
     def _setup_ui(self):
         """设置UI"""
+        self.setStyleSheet("background-color: transparent;")
+
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
@@ -287,7 +289,7 @@ class QuickResultPanel(QFrame):
         title_font.setPointSize(11)
         title_font.setWeight(QFont.Weight.Bold)
         title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #E2E8F0; padding: 4px 0;")
+        title_label.setStyleSheet("color: #E2E8F0; padding: 4px 0; background: transparent;")
         layout.addWidget(title_label)
 
         # 创建各理论卡片

@@ -317,8 +317,8 @@ class AIConversationTab(QWidget):
         input_container.setObjectName("inputContainer")
         input_container.setStyleSheet("""
             QFrame#inputContainer {
-                background-color: #1E1E2E;
-                border-top: 1px solid rgba(99, 102, 241, 0.15);
+                background-color: transparent;
+                border: none;
             }
         """)
         input_main_layout = QVBoxLayout(input_container)
