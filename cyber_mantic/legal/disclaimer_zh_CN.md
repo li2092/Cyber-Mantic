@@ -205,7 +205,7 @@
 如对本协议有任何疑问，请通过以下方式联系：
 
 - 项目仓库：[GitHub - Cyber-Mantic](https://github.com/li2092/Cyber-Mantic)
-- 问题反馈：通过GitHub Issues提交
+- 问题反馈：通过GitHub Issues提交 或 cybermantic@qq.com
 
 ---
 

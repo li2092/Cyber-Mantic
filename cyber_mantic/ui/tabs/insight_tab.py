@@ -59,19 +59,20 @@ class ProfileAnalysisWorker(QThread):
             # 构建分析prompt
             prompt = self._build_analysis_prompt()
 
-            # 调用AI API
+            # 调用AI API (使用APIManager的call_api方法)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             result = loop.run_until_complete(
-                self.api_manager.chat_completion(
-                    messages=[{"role": "user", "content": prompt}],
-                    model_preference="deepseek"  # 使用deepseek进行分析
+                self.api_manager.call_api(
+                    task_type="快速交互问答",  # 使用deepseek进行分析
+                    prompt=prompt,
+                    enable_dual_verification=False  # 禁用双模型验证以加速
                 )
             )
             loop.close()
 
-            if result and 'content' in result:
-                self.finished.emit(result['content'])
+            if result:
+                self.finished.emit(result)
             else:
                 self.error.emit("AI分析返回为空")
 

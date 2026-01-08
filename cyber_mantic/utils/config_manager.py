@@ -195,7 +195,8 @@ class ConfigManager:
             'gemini': api_config.get('gemini_api_key', ''),
             'deepseek': api_config.get('deepseek_api_key', ''),
             'kimi': api_config.get('kimi_api_key', ''),
-            'amap': os.getenv('AMAP_API_KEY', '')  # 地图API单独从环境变量读取
+            # 高德地图API：优先从用户配置读取，其次从环境变量
+            'amap': api_config.get('amap_api_key', '') or os.getenv('AMAP_API_KEY', '')
         }
 
     def has_valid_api_key(self) -> bool:

@@ -464,6 +464,7 @@ class SettingsTab(QWidget):
                     'gemini_api_key': self.gemini_api_input.text().strip(),
                     'deepseek_api_key': self.deepseek_api_input.text().strip(),
                     'kimi_api_key': self.kimi_api_input.text().strip(),
+                    'amap_api_key': self.amap_api_input.text().strip(),  # 高德地图API密钥
                     # 模型配置
                     'claude_model': self.claude_model_combo.currentText().strip(),
                     'gemini_model': self.gemini_model_combo.currentText().strip(),

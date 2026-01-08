@@ -46,10 +46,19 @@ class ConversationWorker(QThread):
         self.service = service
         self.user_message = user_message
         self.is_start = is_start
+        self._is_cancelled = False  # 取消标志
+
+    def cancel(self):
+        """取消任务"""
+        self._is_cancelled = True
 
     def run(self):
         """执行异步对话"""
         try:
+            # 检查是否已取消
+            if self._is_cancelled:
+                return
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
@@ -70,10 +79,15 @@ class ConversationWorker(QThread):
 
             loop.close()
 
+            # 检查是否已取消
+            if self._is_cancelled:
+                return
+
             self.message_received.emit(response)
 
         except Exception as e:
-            self.error.emit(str(e))
+            if not self._is_cancelled:
+                self.error.emit(str(e))
 
     def emit_progress(self, stage: str, message: str, progress: int):
         """发送进度信号"""
@@ -91,6 +105,7 @@ class AIConversationTab(QWidget):
         self.api_manager = api_manager
         self.conversation_service = ConversationService(api_manager)
         self.logger = get_logger(__name__)
+        self.worker = None  # 当前工作线程
         self._setup_ui()
         self._start_new_conversation()
 
@@ -109,11 +124,15 @@ class AIConversationTab(QWidget):
 
         # 右侧：关键信息显示
         right_widget = self._create_right_panel()
+        right_widget.setMinimumWidth(280)  # 调窄右侧最小宽度
+        right_widget.setMaximumWidth(380)  # 限制右侧最大宽度
         splitter.addWidget(right_widget)
 
-        # 设置初始比例（左侧60%，右侧40%） - 增加右侧宽度以便查看关键信息
-        splitter.setStretchFactor(0, 6)
-        splitter.setStretchFactor(1, 4)
+        # 设置初始比例（左侧65%，右侧35%） - 给对话区域更多空间
+        splitter.setStretchFactor(0, 65)
+        splitter.setStretchFactor(1, 35)
+        # 设置初始大小（如果窗口宽度为1200，左820右380）
+        splitter.setSizes([820, 380])
 
         layout.addWidget(splitter)
         self.setLayout(layout)
@@ -206,8 +225,9 @@ class AIConversationTab(QWidget):
 
     def _create_right_panel(self) -> QWidget:
         """创建右侧关键信息面板（添加滚动条，防止挤压进度条）"""
-        # 创建滚动区域容器
-        scroll_area = QScrollArea()
+        # 创建滚动区域容器 - 保存引用以便进度更新时滚动到顶部
+        self.right_panel_scroll_area = QScrollArea()
+        scroll_area = self.right_panel_scroll_area
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -357,6 +377,9 @@ class AIConversationTab(QWidget):
         """开始新对话"""
         self.logger.info("开始新的AI对话会话")
 
+        # 停止当前正在运行的工作线程
+        self._stop_current_worker()
+
         # 重置服务
         self.conversation_service.reset()
 
@@ -449,6 +472,9 @@ class AIConversationTab(QWidget):
             self.progress_widget.show()
             self.progress_widget.reset()
 
+        # 停止当前正在运行的工作线程（防止重复发送）
+        self._stop_current_worker()
+
         # 启动异步处理
         self.worker = ConversationWorker(self.conversation_service, user_message)
         self.worker.message_received.connect(self._on_message_received)
@@ -497,6 +523,10 @@ class AIConversationTab(QWidget):
 
         # 更新右侧面板的阶段信息
         self.stage_label.setText(f"⚙️ {stage} ({progress}%)")
+
+        # 右侧面板滚动到顶部，让用户看到最新的进度信息
+        if hasattr(self, 'right_panel_scroll_area'):
+            self.right_panel_scroll_area.verticalScrollBar().setValue(0)
 
     def _on_error(self, error_msg: str):
         """错误处理"""
@@ -627,7 +657,11 @@ class AIConversationTab(QWidget):
 
         # 已选理论
         if context.selected_theories:
-            theories_str = "、".join(context.selected_theories)
+            # selected_theories 可能是字典列表或字符串列表
+            if context.selected_theories and isinstance(context.selected_theories[0], dict):
+                theories_str = "、".join([t.get('theory', str(t)) for t in context.selected_theories])
+            else:
+                theories_str = "、".join(str(t) for t in context.selected_theories)
             status_parts.append(f"**已选理论**: {theories_str}")
 
         # 已完成的分析
@@ -808,3 +842,25 @@ class AIConversationTab(QWidget):
             self.xiaoliu_text.setMarkdown(xiaoliu_md)
         else:
             self.xiaoliu_text.setMarkdown("_等待起卦..._")
+
+    def _stop_current_worker(self):
+        """停止当前正在运行的工作线程"""
+        if self.worker is not None and self.worker.isRunning():
+            self.logger.debug("正在停止当前工作线程...")
+            self.worker.cancel()
+            # 断开信号连接，防止后续触发
+            try:
+                self.worker.message_received.disconnect()
+                self.worker.progress_updated.disconnect()
+                self.worker.error.disconnect()
+            except TypeError:
+                pass  # 信号未连接时忽略
+            # 等待线程结束（最多2秒）
+            if not self.worker.wait(2000):
+                self.logger.warning("工作线程未能在2秒内结束")
+            self.worker = None
+
+    def cleanup(self):
+        """清理资源（窗口关闭时调用）"""
+        self.logger.debug("AIConversationTab 清理资源")
+        self._stop_current_worker()

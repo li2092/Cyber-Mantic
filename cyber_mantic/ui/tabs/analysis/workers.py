@@ -54,12 +54,13 @@ class GeocodeWorker(QThread):
         """执行地理编码查询"""
         try:
             from utils.amap_geocoder import get_geocoder
-            geocoder = get_geocoder()
+            # 使用force_refresh=True确保读取最新的配置
+            geocoder = get_geocoder(force_refresh=True)
             result = geocoder.geocode(self.address)
 
             if result:
                 self.finished.emit(result)
             else:
-                self.error.emit(f"未找到地址\"{self.address}\"的位置信息")
+                self.error.emit(f"未找到地址\"{self.address}\"的位置信息\n请检查是否已配置高德地图API密钥")
         except Exception as e:
             self.error.emit(f"查询失败: {str(e)}")

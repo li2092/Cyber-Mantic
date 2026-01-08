@@ -202,7 +202,8 @@ class ThemeSystem:
             background-color: {input_bg};
             border: 1px solid {c['border']};
             border-radius: 10px;
-            padding: 10px 14px;
+            padding: 8px 12px;
+            min-height: 18px;
             color: {c['text_primary']};
             font-size: 14px;
             selection-background-color: {c['primary']};
@@ -227,7 +228,8 @@ class ThemeSystem:
             background-color: {input_bg};
             border: 1px solid {c['border']};
             border-radius: 8px;
-            padding: 8px 12px;
+            padding: 6px 12px;
+            min-height: 20px;
             color: {c['text_primary']};
             font-size: 13px;
         }}

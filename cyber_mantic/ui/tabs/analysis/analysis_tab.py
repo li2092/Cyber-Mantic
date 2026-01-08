@@ -85,12 +85,12 @@ class AnalysisTab(QWidget):
         content_layout.addStretch()
 
         # 滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(content_widget)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-        main_layout.addWidget(scroll_area, 1)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidget(content_widget)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        main_layout.addWidget(self.scroll_area, 1)
 
         # 底部按钮
         self._create_action_bar(main_layout)
@@ -372,6 +372,10 @@ class AnalysisTab(QWidget):
 
         if hasattr(self, 'export_btn'):
             self.export_btn.set_report(report)
+
+        # 滚动到顶部
+        if hasattr(self, 'scroll_area'):
+            self.scroll_area.verticalScrollBar().setValue(0)
 
         self.update()
         self.repaint()

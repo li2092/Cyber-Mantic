@@ -198,8 +198,11 @@ class TheorySelector:
         q_vec = np.array(self.QUESTION_TYPE_VECTORS.get(question_type, [0.5] * 8))
         t_vec = np.array(self.THEORY_STRENGTH_VECTORS.get(theory_name, [0.5] * 8))
 
-        # 余弦相似度
-        similarity = np.dot(q_vec, t_vec) / (np.linalg.norm(q_vec) * np.linalg.norm(t_vec))
+        # 余弦相似度（添加除零保护）
+        norm_product = np.linalg.norm(q_vec) * np.linalg.norm(t_vec)
+        if norm_product == 0:
+            return 0.0
+        similarity = np.dot(q_vec, t_vec) / norm_product
         return float(similarity)
 
     def _get_missing_info_suggestions(self, user_input: UserInput) -> List[str]:
