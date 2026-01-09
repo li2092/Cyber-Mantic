@@ -16,6 +16,7 @@ from utils.error_handler import ErrorHandler
 from utils.logger import get_logger
 from ui.widgets.theme_settings_widget import ThemeSettingsWidget
 from ui.widgets.feature_status_widget import FeatureStatusWidget
+from ui.widgets.api_settings_widget import APISettingsWidget
 from ui.dialogs.about_dialog import AboutDialog
 
 
@@ -57,9 +58,17 @@ class SettingsTab(QWidget):
         content_layout.setSpacing(15)
         content_layout.setContentsMargins(20, 20, 20, 20)
 
-        # ===== 1. API配置组 (顶部) =====
-        api_group = self._create_api_config_group()
-        content_layout.addWidget(api_group)
+        # ===== 1. API配置组 (顶部) - V2升级版 =====
+        try:
+            current_theme = self.theme_manager.get_current_theme() if self.theme_manager else "dark"
+            self.api_settings_widget = APISettingsWidget(theme=current_theme)
+            self.api_settings_widget.settings_changed.connect(self._on_api_settings_changed)
+            content_layout.addWidget(self.api_settings_widget)
+        except Exception as e:
+            self.error_handler.handle_error(e, "API设置组件初始化", show_dialog=False)
+            # 降级：使用基础API配置
+            api_group = self._create_api_config_group()
+            content_layout.addWidget(api_group)
 
         # ===== 2. 主题设置组 =====
         try:
@@ -303,6 +312,10 @@ class SettingsTab(QWidget):
         except Exception as e:
             self.error_handler.handle_error(e, "打开关于对话框")
 
+    def _on_api_settings_changed(self):
+        """API设置变更回调（V2 APISettingsWidget）"""
+        self.logger.debug("API设置已变更")
+
     def _toggle_password(self, line_edit: QLineEdit, show: bool):
         """切换密码显示/隐藏"""
         if show:
@@ -373,7 +386,13 @@ class SettingsTab(QWidget):
     def _load_current_config(self):
         """加载当前配置到界面"""
         try:
-            # API密钥
+            # 如果使用V2 APISettingsWidget，它会自动加载配置
+            if hasattr(self, 'api_settings_widget') and self.api_settings_widget:
+                # APISettingsWidget在showEvent中自动加载，无需手动处理
+                self.logger.info("使用V2 API设置组件，配置自动加载")
+                return
+
+            # 降级模式：使用基础API配置
             api_keys = self.config_manager.get_api_keys()
             self.claude_api_input.setText(api_keys.get('claude', ''))
             self.gemini_api_input.setText(api_keys.get('gemini', ''))
@@ -403,7 +422,7 @@ class SettingsTab(QWidget):
                 self.config_manager.get('api.enable_dual_verification', True)
             )
 
-            self.logger.info("配置已加载到界面")
+            self.logger.info("配置已加载到界面（降级模式）")
         except Exception as e:
             self.error_handler.handle_error(e, "加载配置")
 
