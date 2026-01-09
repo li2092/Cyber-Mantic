@@ -1,19 +1,21 @@
 """
-AIConversationTab - 纯AI对话模式标签页
+AIConversationTab - 纯AI对话模式标签页（V2重构版）
 
-实现渐进式5阶段智能交互流程：
-1. 阶段1_破冰：事项分类 + 3个随机数字 → 小六壬快速初判
-2. 阶段2_基础信息：出生年月日、性别、MBTI → Kimi解析 + 八字验证 → 展示可用理论
-3. 阶段3_深度补充：时辰推断（兄弟姐妹、脸型、作息）+ 补充占卜（六爻、梅花）
-4. 阶段4_结果确认：回溯验证（过去3-5年关键事件）→ 置信度调整
-5. 阶段5_完整报告：AI综合分析 + 行动建议 + 持续问答
+实现渐进式5阶段8步骤智能交互流程：
+1. 阶段0_欢迎：固定模板欢迎消息
+2. 阶段1_破冰：咨询大类 + 3个数字 → 小六壬快速初判 + 记录起卦时间
+3. 阶段2_深入：具体描述 + 汉字 → 测字术分析（产生好奇感）
+4. 阶段3_信息收集：生辰+性别+MBTI → 多理论计算（八字/紫微/梅花/六爻/奇门）
+5. 阶段4_验证：回溯验证问题 → 置信度调整
+6. 阶段5_报告：AI多轮深度思考 → 综合报告
+7. 问答交互：持续问答、保存对话
 
-特点：
-- Kimi进行出生信息自然语言解析（三级时辰分类：确定/不确定/未知）
-- BaZiCalculator验证八字准确性（三层回退：Kimi → 八字验证 → 代码解析）
-- 多理论融合分析（八字、紫微、奇门、六壬、六爻、梅花、小六壬、测字）
-- 智能问题分类（八字详情、建议、预测、理论解释、通用）
-- 对话管理工具（摘要、统计、进度追踪、Markdown导出）
+V2特点：
+- 五级吉凶颜色系统（大吉/小吉/平/小凶/大凶）
+- 测字术集成（阶段2深入分析）
+- 卡片展开/收起交互
+- 简化右侧面板（删除旧组件）
+- FlowGuard信息收集进度追踪
 """
 
 from PyQt6.QtWidgets import (
@@ -401,87 +403,21 @@ class AIConversationTab(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
-        # 标题
-        title_label = QLabel("📊 关键信息")
+        # ===== V2: 标题 =====
+        title_label = QLabel("📊 理论分析进度")
         title_font = QFont()
         title_font.setPointSize(12)
         title_font.setBold(True)
         title_label.setFont(title_font)
         layout.addWidget(title_label)
 
-        # ===== 小六壬结果卡片 (顶部) =====
-        xiaoliu_group = QGroupBox("🎯 小六壬快断")
-        xiaoliu_layout = QVBoxLayout()
-        self.xiaoliu_text = QTextBrowser()
-        self.xiaoliu_text.setReadOnly(True)
-        self.xiaoliu_text.setFrameStyle(QFrame.Shape.NoFrame)
-        self.xiaoliu_text.setMaximumHeight(120)
-        self.xiaoliu_text.setMarkdown("_等待起卦..._")
-        xiaoliu_layout.addWidget(self.xiaoliu_text)
-        xiaoliu_group.setLayout(xiaoliu_layout)
-        layout.addWidget(xiaoliu_group)
-
-        # ===== V2: 快速结论卡片面板 =====
+        # ===== V2: 快速结论卡片面板（顶部，替代原小六壬卡片） =====
         self.quick_result_panel = QuickResultPanel(theme="dark")
         self.quick_result_panel.theory_clicked.connect(self._show_theory_detail)
         layout.addWidget(self.quick_result_panel)
 
-        # 理论详情显示区（初始隐藏）
-        self.theory_detail_text = QTextBrowser()
-        self.theory_detail_text.setReadOnly(True)
-        self.theory_detail_text.setFrameStyle(QFrame.Shape.NoFrame)
-        self.theory_detail_text.setMaximumHeight(150)
-        self.theory_detail_text.setMarkdown("_点击上方卡片查看理论详情_")
-        self.theory_detail_text.hide()
-        layout.addWidget(self.theory_detail_text)
-
-        # 兼容性：保留theory_buttons字典（某些地方可能还在用）
+        # V2: 兼容性保留（避免其他代码引用报错）
         self.theory_buttons = {}
-
-        # ===== 八字排盘结果组 =====
-        bazi_group = QGroupBox("八字命盘")
-        bazi_layout = QVBoxLayout()
-        self.bazi_text = QTextBrowser()
-        self.bazi_text.setReadOnly(True)
-        self.bazi_text.setFrameStyle(QFrame.Shape.NoFrame)
-        self.bazi_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.bazi_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.bazi_text.setMaximumHeight(200)
-        self.bazi_text.setMarkdown("（暂无）")
-        self.bazi_text.setStyleSheet("font-size: 10pt;")
-        bazi_layout.addWidget(self.bazi_text)
-        bazi_group.setLayout(bazi_layout)
-        layout.addWidget(bazi_group)
-
-        # 简要分析组
-        analysis_group = QGroupBox("简要分析")
-        analysis_layout = QVBoxLayout()
-        self.analysis_text = QTextBrowser()
-        self.analysis_text.setReadOnly(True)
-        self.analysis_text.setFrameStyle(QFrame.Shape.NoFrame)
-        self.analysis_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.analysis_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.analysis_text.setMaximumHeight(200)
-        self.analysis_text.setMarkdown("（暂无）")
-        self.analysis_text.setStyleSheet("font-size: 10pt;")
-        analysis_layout.addWidget(self.analysis_text)
-        analysis_group.setLayout(analysis_layout)
-        layout.addWidget(analysis_group)
-
-        # 分析状态组
-        status_group = QGroupBox("分析状态")
-        status_layout = QVBoxLayout()
-        self.status_text = QTextBrowser()
-        self.status_text.setReadOnly(True)
-        self.status_text.setFrameStyle(QFrame.Shape.NoFrame)
-        self.status_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.status_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.status_text.setMaximumHeight(150)
-        self.status_text.setMarkdown("（等待开始）")
-        self.status_text.setStyleSheet("font-size: 9pt;")
-        status_layout.addWidget(self.status_text)
-        status_group.setLayout(status_layout)
-        layout.addWidget(status_group)
 
         # ===== V2: FlowGuard信息收集进度 =====
         flowguard_group = QGroupBox("📋 信息收集进度")
@@ -536,7 +472,11 @@ class AIConversationTab(QWidget):
         return scroll_area
 
     def _start_new_conversation(self):
-        """开始新对话"""
+        """
+        V2重构：开始新对话
+
+        重置所有UI组件和服务状态
+        """
         self.logger.info("开始新的AI对话会话")
 
         # 停止当前正在运行的工作线程
@@ -545,20 +485,23 @@ class AIConversationTab(QWidget):
         # 重置服务
         self.conversation_service.reset()
 
-        # 清空UI
+        # ===== V2: 清空UI（移除了旧组件引用） =====
         self.chat_widget.clear_messages()
         self.input_text.clear()
-        self.bazi_text.setMarkdown("（暂无）")
-        self.analysis_text.setMarkdown("（暂无）")
-        self.status_text.setMarkdown("（等待开始）")
         self.stage_label.setText("等待用户输入...")
         self.save_btn.setEnabled(False)
+
         # V2: 重置快速结论面板
         if hasattr(self, 'quick_result_panel'):
             self.quick_result_panel.reset_all()
+
         # V2: 重置FlowGuard进度显示
         if hasattr(self, 'flowguard_text'):
             self.flowguard_text.setMarkdown("_等待开始对话..._")
+
+        # V2: 隐藏验证组件
+        if hasattr(self, 'verification_group'):
+            self.verification_group.hide()
 
         # 启动对话 - 使用is_start=True触发start_conversation
         self.worker = ConversationWorker(
@@ -632,12 +575,12 @@ class AIConversationTab(QWidget):
         self.send_btn.setText("处理中...")
 
         # 显示进度条（如果正在分析）
-        # 在进行深度分析的阶段显示进度条
+        # V2: 在进行深度分析的阶段显示进度条
         analysis_stages = [
-            ConversationStage.STAGE2_BASIC_INFO,
-            ConversationStage.STAGE3_SUPPLEMENT,
-            ConversationStage.STAGE4_VERIFICATION,
-            ConversationStage.STAGE5_FINAL_REPORT
+            ConversationStage.STAGE2_DEEPEN,      # V2: 深入（测字术）
+            ConversationStage.STAGE3_COLLECT,     # V2: 信息收集
+            ConversationStage.STAGE4_VERIFY,      # V2: 验证
+            ConversationStage.STAGE5_REPORT       # V2: 报告
         ]
         if self.conversation_service.context.stage in analysis_stages:
             self.progress_widget.show()
@@ -730,160 +673,33 @@ class AIConversationTab(QWidget):
         self.send_btn.setText("发送")
 
     def _update_right_panel(self):
-        """更新右侧关键信息面板"""
+        """
+        V2重构：更新右侧关键信息面板
+
+        主要更新：
+        - 删除了旧组件引用（xiaoliu_text, bazi_text, analysis_text, status_text）
+        - 通过 quick_result_panel 显示理论分析进度
+        - 通过 flowguard_text 显示信息收集进度
+        """
         context = self.conversation_service.context
 
-        # 更新小六壬卡片
-        self._update_xiaoliu_card()
-
-        # 激活已完成的理论按钮
-        if context.xiaoliu_result:
-            # 小六壬不在6个按钮中，但可以激活相关理论
-            pass
-        if context.bazi_result:
-            self._activate_theory_button("八字")
-        if context.ziwei_result:
-            self._activate_theory_button("紫微")
-        if context.qimen_result:
-            self._activate_theory_button("奇门")
-        if context.liuren_result:
-            self._activate_theory_button("六壬")
-        if context.liuyao_result:
-            self._activate_theory_button("六爻")
-        if context.meihua_result:
-            self._activate_theory_button("梅花")
-
-        # 更新八字信息
-        if context.bazi_result:
-            bazi_data = context.bazi_result
-
-            # 正确获取四柱信息
-            year_pillar = bazi_data.get("年柱")
-            month_pillar = bazi_data.get("月柱")
-            day_pillar = bazi_data.get("日柱")
-            hour_pillar = bazi_data.get("时柱")
-
-            # 构建专业排版的八字显示
-            year_str = f"{year_pillar['天干']}{year_pillar['地支']}" if year_pillar else "未知"
-            month_str = f"{month_pillar['天干']}{month_pillar['地支']}" if month_pillar else "未知"
-            day_str = f"{day_pillar['天干']}{day_pillar['地支']}" if day_pillar else "未知"
-            hour_str = f"{hour_pillar['天干']}{hour_pillar['地支']}" if hour_pillar else "未知"
-
-            # 获取纳音
-            year_nayin = bazi_data.get('纳音', {}).get('年柱', '')
-
-            # 获取五行统计
-            wuxing_stats = bazi_data.get('五行统计', {}).get('统计', {})
-            wuxing_str = ' '.join([f"{k}:{v}" for k, v in wuxing_stats.items() if v > 0])
-
-            # 获取用神分析
-            yongshen_analysis = bazi_data.get('用神分析', {})
-            yongshen = yongshen_analysis.get('用神', '未知')
-            rizhu_strength = yongshen_analysis.get('日主强弱', '未知')
-
-            bazi_display = f"""### 四柱八字
-
-| 时柱 | 日柱 | 月柱 | 年柱 |
-|:---:|:---:|:---:|:---:|
-| **{hour_str}** | **{day_str}** | **{month_str}** | **{year_str}** |
-
----
-
-**日主**: {bazi_data.get('日主', '未知')} （{rizhu_strength}）
-**用神**: {yongshen}
-**年柱纳音**: {year_nayin}
-
-**五行**: {wuxing_str if wuxing_str else '未知'}
-"""
-            self.bazi_text.setMarkdown(bazi_display.strip())
-
-            # 更新简要分析
-            if "ai_analysis" in bazi_data:
-                analysis = bazi_data["ai_analysis"]
-                # 提取前200字
-                summary = analysis[:200] + ("..." if len(analysis) > 200 else "")
-                self.analysis_text.setMarkdown(summary)
-
-        # 更新阶段
+        # ===== V2: 更新阶段显示文本 =====
         stage_text = {
             ConversationStage.INIT: "初始化",
             ConversationStage.STAGE1_ICEBREAK: "破冰阶段",
-            ConversationStage.STAGE2_BASIC_INFO: "收集信息",
-            ConversationStage.STAGE3_SUPPLEMENT: "深度补充",
-            ConversationStage.STAGE4_VERIFICATION: "结果确认",
-            ConversationStage.STAGE5_FINAL_REPORT: "生成报告",
+            ConversationStage.STAGE2_DEEPEN: "深入分析",       # V2新增
+            ConversationStage.STAGE3_COLLECT: "信息收集",      # V2更名
+            ConversationStage.STAGE4_VERIFY: "回溯验证",       # V2更名
+            ConversationStage.STAGE5_REPORT: "生成报告",       # V2更名
             ConversationStage.QA: "问答交互",
             ConversationStage.COMPLETED: "已完成"
         }.get(context.stage, "未知")
-
         self.stage_label.setText(f"📍 {stage_text}")
 
-        # 更新分析状态
-        status_parts = []
-
-        # 问题类别和描述
-        if context.question_category:
-            category_emoji = {
-                "事业": "💼", "感情": "💕", "财运": "💰",
-                "健康": "🏥", "学业": "📚", "决策": "🤔", "其他": "🔮"
-            }.get(context.question_category, "📋")
-            status_parts.append(f"**咨询事项**: {category_emoji} {context.question_category}")
-            if context.question_description:
-                desc_short = context.question_description[:50] + ("..." if len(context.question_description) > 50 else "")
-                status_parts.append(f"_\"{desc_short}\"_")
-
-        # 时辰确定性
-        if context.time_certainty and context.time_certainty != "unknown":
-            certainty_map = {
-                "certain": "✅ 确定",
-                "uncertain": "⚠️ 不确定",
-                "unknown": "❓ 未知"
-            }
-            status_parts.append(f"**时辰**: {certainty_map.get(context.time_certainty, context.time_certainty)}")
-
-        # 已选理论
-        if context.selected_theories:
-            # selected_theories 可能是字典列表或字符串列表
-            if context.selected_theories and isinstance(context.selected_theories[0], dict):
-                theories_str = "、".join([t.get('theory', str(t)) for t in context.selected_theories])
-            else:
-                theories_str = "、".join(str(t) for t in context.selected_theories)
-            status_parts.append(f"**已选理论**: {theories_str}")
-
-        # 已完成的分析
-        completed_analyses = []
-        if context.xiaoliu_result:
-            completed_analyses.append("✓ 小六壬")
-        if context.bazi_result:
-            completed_analyses.append("✓ 八字")
-        if context.qimen_result:
-            completed_analyses.append("✓ 奇门")
-        if context.liuren_result:
-            completed_analyses.append("✓ 六壬")
-        if context.liuyao_result:
-            completed_analyses.append("✓ 六爻")
-        if context.meihua_result:
-            completed_analyses.append("✓ 梅花")
-
-        if completed_analyses:
-            status_parts.append(f"**已完成**: {' '.join(completed_analyses)}")
-
-        # 整体进度
-        progress = self.conversation_service.get_progress_percentage()
-        status_parts.append(f"**进度**: {progress}%")
-
-        # 验证反馈（如果有）
-        if context.verification_feedback:
-            feedback_count = len(context.verification_feedback)
-            status_parts.append(f"**已反馈**: {feedback_count}次")
-
-        status_md = "\n\n".join(status_parts) if status_parts else "（等待开始）"
-        self.status_text.setMarkdown(status_md)
-
-        # V2: 更新FlowGuard信息收集进度
+        # ===== V2: 更新FlowGuard信息收集进度 =====
         self._update_flowguard_progress()
 
-        # V2: 更新回溯验证面板
+        # ===== V2: 更新回溯验证面板 =====
         self._update_verification_panel()
 
     def _on_save_clicked(self):
@@ -961,48 +777,19 @@ class AIConversationTab(QWidget):
             self.logger.error(f"更新八字命盘信息失败: {e}")
 
     def _show_theory_detail(self, theory_name: str):
-        """显示理论详情"""
-        context = self.conversation_service.context
+        """
+        V2重构：理论卡片点击处理
 
-        # 获取对应理论的结果
-        theory_result = None
-        if theory_name == "八字" and context.bazi_result:
-            theory_result = context.bazi_result
-        elif theory_name == "紫微" and context.ziwei_result:
-            theory_result = context.ziwei_result
-        elif theory_name == "奇门" and context.qimen_result:
-            theory_result = context.qimen_result
-        elif theory_name == "六壬" and context.liuren_result:
-            theory_result = context.liuren_result
-        elif theory_name == "六爻" and context.liuyao_result:
-            theory_result = context.liuyao_result
-        elif theory_name == "梅花" and context.meihua_result:
-            theory_result = context.meihua_result
+        根据设计文档第8.4节，详情现在直接在卡片内展开/收起，
+        不再使用单独的详情显示区域。
+        此方法保留用于日志记录和可能的扩展（如弹窗详情）。
+        """
+        self.logger.debug(f"用户点击了{theory_name}理论卡片")
 
-        if theory_result:
-            # 显示理论详情
-            self.theory_detail_text.show()
-
-            # 提取关键信息
-            detail_md = f"### {theory_name}分析结果\n\n"
-
-            if isinstance(theory_result, dict):
-                # 提取独立结论
-                if 'judgment' in theory_result:
-                    detail_md += f"**判断**: {theory_result['judgment']}\n\n"
-                if 'conclusion' in theory_result:
-                    detail_md += f"**结论**: {theory_result['conclusion']}\n\n"
-                if 'advice' in theory_result:
-                    detail_md += f"**建议**: {theory_result['advice']}\n"
-                if 'ai_analysis' in theory_result:
-                    analysis = theory_result['ai_analysis']
-                    short_analysis = analysis[:150] + "..." if len(analysis) > 150 else analysis
-                    detail_md += f"\n{short_analysis}"
-
-            self.theory_detail_text.setMarkdown(detail_md)
-        else:
-            self.theory_detail_text.setMarkdown(f"_{theory_name}分析尚未完成_")
-            self.theory_detail_text.show()
+        # V2: 卡片展开/收起由 quick_result_panel 内部处理
+        # 此处可以添加额外的交互逻辑（如打开详情弹窗）
+        # 目前仅记录点击事件
+        pass
 
     def _activate_theory_button(self, theory_name: str):
         """激活理论按钮"""
@@ -1016,24 +803,7 @@ class AIConversationTab(QWidget):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
-    def _update_xiaoliu_card(self):
-        """更新小六壬卡片"""
-        context = self.conversation_service.context
-
-        if context.xiaoliu_result:
-            result = context.xiaoliu_result
-            # 构建小六壬显示
-            judgment = result.get('判断', result.get('judgment', ''))
-            gong = result.get('宫位', result.get('position', ''))
-            advice = result.get('建议', result.get('advice', ''))
-
-            xiaoliu_md = f"""**{gong}** - {judgment}
-
-{advice[:100] + '...' if len(advice) > 100 else advice}
-"""
-            self.xiaoliu_text.setMarkdown(xiaoliu_md)
-        else:
-            self.xiaoliu_text.setMarkdown("_等待起卦..._")
+    # V2: 已删除 _update_xiaoliu_card 方法（小六壬卡片已整合到 quick_result_panel）
 
     def _update_flowguard_progress(self):
         """V2: 更新FlowGuard信息收集进度"""
@@ -1056,8 +826,8 @@ class AIConversationTab(QWidget):
         """V2: 更新回溯验证面板"""
         context = self.conversation_service.context
 
-        # 只在阶段4显示验证组件
-        if context.stage == ConversationStage.STAGE4_VERIFICATION:
+        # V2: 只在阶段4（验证）显示验证组件
+        if context.stage == ConversationStage.STAGE4_VERIFY:
             questions = context.verification_questions
             if questions and len(questions) > 0:
                 self._show_verification_questions(questions)

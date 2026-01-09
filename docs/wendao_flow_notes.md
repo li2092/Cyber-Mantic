@@ -173,6 +173,52 @@ self.liuyao_numbers: List[int] = []  # 六爻起卦数字（自动生成）
 - 颜色/方位都缺失：梅花易数使用时间起卦
 - 时辰缺失：使用三柱八字分析
 
+## 已实现功能（2026-01-09）
+
+### 后端核心更新
+
+| 文件 | 改动 | 状态 |
+|------|------|------|
+| `context.py` | 新增阶段枚举、字段、辅助方法 | ✅ |
+| `flow_guard.py` | 新增STAGE2_DEEPEN、验证器 | ✅ |
+| `conversation_service.py` | 重构阶段处理逻辑 | ✅ |
+| `quick_result_card.py` | 五级颜色、测字术、展开收起 | ✅ |
+
+### 关键代码片段
+
+**context.py 新增字段**:
+```python
+# 阶段1
+self.qigua_time: Optional[datetime] = None    # 起卦时间
+
+# 阶段2（V2新增）
+self.character: Optional[str] = None          # 测字用的汉字
+self.cezi_result: Optional[Dict] = None       # 测字结果
+
+# 阶段3
+self.liuyao_numbers: List[int] = []           # 六爻自动数字
+```
+
+**五级颜色系统**:
+```python
+# 设计文档 wendao_flow_design.md 第8.2节
+大吉 (>=0.8): #DC2626 / #7F1D1D  # 喜庆红
+小吉 (0.6-0.8): #EA580C / #7C2D12  # 喜庆橙
+平 (0.4-0.6): #9CA3AF / #374151  # 浅灰
+小凶 (0.2-0.4): #166534 / #14532D  # 深绿
+大凶 (<0.2): #1F2937 / #111827  # 深黑
+```
+
+### 待完成功能
+
+| 任务 | 状态 |
+|------|------|
+| ai_conversation_tab.py 删除旧组件 | 待处理 |
+| 提示词模板文件创建 | 待处理 |
+| 三文件系统更新 | 进行中 |
+
+---
+
 ## 测试用例设计
 
 ### 正常流程
