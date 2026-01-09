@@ -88,7 +88,36 @@ ShichenInfo → BaziCalculator.calculate_with_shichen_info()
 - 冲突解决分析 → deepseek/deepseek-reasoner
 - 回溯验证生成 → gemini/gemini-2.0-flash-exp
 
-### 2.4 真太阳时计算器
+### 2.4 FlowGuard流程监管模块
+
+**入口文件**: `cyber_mantic/core/flow_guard.py`
+
+**核心功能**:
+- 各阶段输入要求定义（STAGE_REQUIREMENTS）
+- 输入验证器（正则+关键词）
+- AI增强验证（代码优先、AI备用）
+- 进度展示（类似Claude Code todo）
+- 阶段引导提示生成
+
+**验证流程**:
+```
+用户输入 → validate_input()（代码验证）
+        ├─ VALID → 直接通过
+        └─ INVALID/INCOMPLETE → validate_input_with_ai()（AI增强）
+                              → 合并结果 → 返回ValidationResult
+```
+
+**主要方法**:
+| 方法 | 功能 |
+|------|------|
+| `validate_input()` | 代码验证器 |
+| `validate_input_with_ai()` | AI增强验证 |
+| `smart_understand_input()` | 智能理解复杂输入 |
+| `generate_progress_display()` | 生成进度展示 |
+| `generate_stage_prompt()` | 生成阶段引导 |
+| `handle_error_input()` | 处理错误输入 |
+
+### 2.5 真太阳时计算器
 
 **入口文件**: `cyber_mantic/utils/time_utils.py`
 
@@ -182,6 +211,8 @@ result = calculator.get_correction_for_birth(
 | 事件验证推断 | TODO | `narrow_by_event()` 需要实现 |
 | 推演UI真太阳时 | TODO | 需要添加经度输入界面 |
 | 仲裁结果UI | 待优化 | 需要更好的可视化展示 |
+| 时辰确定性AI增强 | 建议 | `_analyze_time_expression` 增加AI备用 |
+| 问题类型AI识别 | 建议 | `identify_question_type` 增加AI备用 |
 | 阶段六测试 | 未开始 | 完整功能测试 |
 
 ---

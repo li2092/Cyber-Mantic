@@ -42,6 +42,9 @@ from services.conversation.qa_handler import QAHandler, DEFAULT_QA_KEYWORDS
 from services.conversation.report_generator import ReportGenerator, ConversationExporter
 from utils.usage_stats_manager import get_usage_stats_manager
 
+# V2: FlowGuard流程监管
+from core.flow_guard import get_flow_guard, InputStatus
+
 
 # 导出公共接口（向后兼容）
 __all__ = [
@@ -102,6 +105,9 @@ class ConversationService:
         self.qa_handler = QAHandler(self.api_manager, self.context, self.qa_keywords)
         self.report_generator = ReportGenerator(self.api_manager, self.context)
         self.exporter = ConversationExporter(self.context)
+
+        # V2: 初始化FlowGuard流程监管（注入API管理器）
+        self.flow_guard = get_flow_guard(self.api_manager)
 
     # ==================== 公共API ====================
 
@@ -170,6 +176,9 @@ class ConversationService:
         self._add_message("user", user_message)
         stage = self.context.stage
 
+        # V2: 同步FlowGuard阶段状态
+        self._sync_flow_guard_stage(stage)
+
         try:
             # INIT 阶段也当作破冰阶段处理（用户可能在欢迎消息之前就发送了消息）
             if stage in (ConversationStage.INIT, ConversationStage.STAGE1_ICEBREAK):
@@ -196,6 +205,19 @@ class ConversationService:
             error_msg = f"抱歉，处理您的输入时遇到问题：{str(e)}\n请重试或换个方式表达。"
             self._add_message("assistant", error_msg)
             return error_msg
+
+    def _sync_flow_guard_stage(self, stage: ConversationStage):
+        """同步FlowGuard阶段状态"""
+        stage_mapping = {
+            ConversationStage.INIT: "STAGE1_ICEBREAK",
+            ConversationStage.STAGE1_ICEBREAK: "STAGE1_ICEBREAK",
+            ConversationStage.STAGE2_BASIC_INFO: "STAGE2_BASIC_INFO",
+            ConversationStage.STAGE3_SUPPLEMENT: "STAGE3_SUPPLEMENT",
+            ConversationStage.STAGE4_VERIFICATION: "STAGE4_VERIFICATION",
+        }
+        flow_guard_stage = stage_mapping.get(stage)
+        if flow_guard_stage:
+            self.flow_guard.set_stage(flow_guard_stage)
 
     # ==================== 阶段处理 ====================
 
@@ -655,23 +677,29 @@ class ConversationService:
                 self.logger.error(f"梅花易数计算失败: {e}")
 
     def _retry_msg(self, stage: str) -> str:
-        """生成重试提示"""
-        if stage == "stage1":
-            return """😅 抱歉，我没能完全理解您的信息。
+        """生成重试提示（V2: 使用FlowGuard显示进度）"""
 
-请按以下格式重新输入：
-```
-我想咨询事业，最近想跳槽
-数字是：7、3、5
-```
+        # V2: 使用FlowGuard生成进度展示
+        progress_display = self.flow_guard.generate_progress_display()
+        stage_prompt = self.flow_guard.generate_stage_prompt()
+
+        if stage == "stage1":
+            return f"""😅 抱歉，我没能完全理解您的信息。
+
+{progress_display}
+
+---
+
+{stage_prompt}
 """
         else:
-            return """😅 抱歉，我没能理解您的出生信息。
+            return f"""😅 抱歉，我没能理解您的出生信息。
 
-请按以下格式重新输入：
-```
-1990年5月20日下午3点，男，INTJ
-```
+{progress_display}
+
+---
+
+{stage_prompt}
 """
 
     # ==================== 工具方法 ====================

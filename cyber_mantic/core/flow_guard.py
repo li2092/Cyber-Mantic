@@ -3,7 +3,7 @@ FlowGuard - 问道流程监管模块
 
 V2核心组件：监控对话流程，防止用户输入错误或跳过步骤
 - 定义每个阶段的输入要求
-- 验证用户输入有效性
+- 验证用户输入有效性（代码验证 + AI备用）
 - 生成友好的错误提示和引导
 - 跟踪进度，显示缺失信息
 - 支持错误恢复和重试
@@ -14,13 +14,21 @@ V2核心组件：监控对话流程，防止用户输入错误或跳过步骤
 2. 这个阶段需要什么
 3. 已经收集到什么
 4. 还缺少什么
+
+AI+代码双重验证：
+- 代码验证：快速、确定性高的规则验证
+- AI验证：处理模糊输入、口语化表达、上下文理解
 """
 
 import re
+import json
 from enum import Enum
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from api.manager import APIManager
 
 
 class InputStatus(Enum):
@@ -223,13 +231,26 @@ class FlowGuard:
         "决策": ["决定", "选择", "是否", "要不要", "该不该"],
     }
 
-    def __init__(self):
+    def __init__(self, api_manager: Optional["APIManager"] = None):
+        """
+        初始化流程监管器
+
+        Args:
+            api_manager: API管理器（用于AI增强验证）
+        """
         self.logger = get_logger(__name__)
+        self.api_manager = api_manager
         self.current_stage = "STAGE1_ICEBREAK"
         self.collected_data: Dict[str, Any] = {}
         self.stage_history: List[Dict[str, Any]] = []
         self.retry_count: Dict[str, int] = {}
         self.max_retries = 3
+        self.ai_validation_enabled = api_manager is not None
+
+    def set_api_manager(self, api_manager: "APIManager"):
+        """设置API管理器（延迟注入）"""
+        self.api_manager = api_manager
+        self.ai_validation_enabled = True
 
     def set_stage(self, stage: str):
         """设置当前阶段"""
@@ -299,6 +320,216 @@ class FlowGuard:
             suggestions=suggestions,
             can_retry=True
         )
+
+    async def validate_input_with_ai(
+        self,
+        user_message: str,
+        stage: Optional[str] = None
+    ) -> ValidationResult:
+        """
+        使用AI增强的验证（代码验证 + AI备用）
+
+        流程：
+        1. 先使用代码验证器
+        2. 如果代码验证失败或不完整，使用AI验证
+        3. AI验证结果与代码结果合并
+
+        Args:
+            user_message: 用户消息
+            stage: 阶段名称
+
+        Returns:
+            ValidationResult
+        """
+        # 1. 先用代码验证
+        code_result = self.validate_input(user_message, stage)
+
+        # 如果代码验证成功，直接返回
+        if code_result.status == InputStatus.VALID:
+            return code_result
+
+        # 如果没有AI能力，返回代码验证结果
+        if not self.ai_validation_enabled or not self.api_manager:
+            return code_result
+
+        # 2. 使用AI增强验证
+        try:
+            ai_extracted = await self._ai_validate(user_message, stage)
+
+            if ai_extracted:
+                # 合并AI提取的数据
+                merged_data = {**code_result.extracted_data, **ai_extracted}
+                self.collected_data.update(ai_extracted)
+
+                # 重新检查是否满足要求
+                stage = stage or self.current_stage
+                requirements = self.STAGE_REQUIREMENTS.get(stage, [])
+                required = [r for r in requirements if r.level == RequirementLevel.REQUIRED]
+                missing = [r for r in required if r.name not in self.collected_data]
+
+                if not missing:
+                    return ValidationResult(
+                        status=InputStatus.VALID,
+                        message="信息收集完成（AI辅助识别）",
+                        extracted_data=merged_data,
+                        suggestions=[],
+                        can_retry=True
+                    )
+                else:
+                    return ValidationResult(
+                        status=InputStatus.INCOMPLETE,
+                        message=f"AI识别了部分信息，还需要：{', '.join([m.description for m in missing])}",
+                        extracted_data=merged_data,
+                        suggestions=[f"💡 {m.error_hint}" for m in missing],
+                        can_retry=True
+                    )
+
+        except Exception as e:
+            self.logger.warning(f"AI验证失败: {e}")
+
+        # AI也失败了，返回代码验证结果
+        return code_result
+
+    async def _ai_validate(
+        self,
+        user_message: str,
+        stage: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        使用AI提取信息
+
+        Args:
+            user_message: 用户消息
+            stage: 阶段名称
+
+        Returns:
+            提取的数据字典
+        """
+        stage = stage or self.current_stage
+        requirements = self.STAGE_REQUIREMENTS.get(stage, [])
+
+        if not requirements:
+            return None
+
+        # 构建提取要求说明
+        req_descriptions = []
+        for req in requirements:
+            level_text = "必填" if req.level == RequirementLevel.REQUIRED else "可选"
+            req_descriptions.append(f"- {req.name}: {req.description} ({level_text})，示例：{req.example}")
+
+        prompt = f"""你是一个智能信息提取助手。请从用户输入中提取以下信息。
+
+用户输入：
+{user_message}
+
+需要提取的信息：
+{chr(10).join(req_descriptions)}
+
+请返回JSON格式，只包含能够从用户输入中明确识别出的字段。
+如果某个字段无法确定，不要返回该字段。
+
+返回格式示例：
+```json
+{{"field_name": "extracted_value"}}
+```
+
+只返回JSON，不要有其他文字：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type="简单问题解答",
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            # 解析JSON
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                data = json.loads(json_match.group())
+
+                # 转换和验证数据
+                validated = {}
+                for key, value in data.items():
+                    if key in [r.name for r in requirements]:
+                        validated[key] = value
+
+                self.logger.info(f"AI提取信息: {validated}")
+                return validated if validated else None
+
+        except Exception as e:
+            self.logger.warning(f"AI信息提取失败: {e}")
+
+        return None
+
+    async def smart_understand_input(
+        self,
+        user_message: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        智能理解用户输入（用于复杂/模糊输入）
+
+        处理场景：
+        - 用户口语化表达
+        - 多信息混合输入
+        - 上下文相关的省略表达
+
+        Args:
+            user_message: 用户消息
+            context: 上下文信息
+
+        Returns:
+            理解结果
+        """
+        if not self.ai_validation_enabled or not self.api_manager:
+            return {"understood": False, "reason": "AI未启用"}
+
+        context_str = json.dumps(context, ensure_ascii=False) if context else "无"
+
+        prompt = f"""你是赛博玄数的对话理解助手。请分析用户的输入意图。
+
+当前对话阶段：{self._get_stage_display_name(self.current_stage)}
+已收集信息：{json.dumps(self.collected_data, ensure_ascii=False)}
+上下文：{context_str}
+
+用户输入：
+{user_message}
+
+请分析：
+1. 用户想表达什么？
+2. 是否在回答当前阶段的问题？
+3. 是否想跳过某些信息？
+4. 是否在问问题而不是提供信息？
+
+返回JSON：
+```json
+{{
+    "intent": "provide_info|ask_question|skip|unclear|other",
+    "extracted_info": {{}},
+    "follow_up_needed": true/false,
+    "suggested_response": "建议如何回应"
+}}
+```
+
+只返回JSON：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type="简单问题解答",
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            json_match = re.search(r'\{[\s\S]*\}', response)
+            if json_match:
+                return json.loads(json_match.group())
+
+        except Exception as e:
+            self.logger.warning(f"智能理解失败: {e}")
+
+        return {"understood": False, "reason": "解析失败"}
 
     def get_stage_progress(self, stage: Optional[str] = None) -> StageProgress:
         """
@@ -681,9 +912,26 @@ class FlowGuard:
 _flow_guard_instance: Optional[FlowGuard] = None
 
 
-def get_flow_guard() -> FlowGuard:
-    """获取FlowGuard单例"""
+def get_flow_guard(api_manager: Optional["APIManager"] = None) -> FlowGuard:
+    """
+    获取FlowGuard单例
+
+    Args:
+        api_manager: API管理器（首次调用时设置，后续调用可忽略）
+
+    Returns:
+        FlowGuard实例
+    """
     global _flow_guard_instance
     if _flow_guard_instance is None:
-        _flow_guard_instance = FlowGuard()
+        _flow_guard_instance = FlowGuard(api_manager)
+    elif api_manager and not _flow_guard_instance.api_manager:
+        # 延迟注入API管理器
+        _flow_guard_instance.set_api_manager(api_manager)
     return _flow_guard_instance
+
+
+def reset_flow_guard():
+    """重置FlowGuard单例（用于测试）"""
+    global _flow_guard_instance
+    _flow_guard_instance = None

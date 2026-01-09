@@ -825,7 +825,163 @@ class ConversationService:
 
 ---
 
-## 六、待探索问题
+## 六、赛博玄数判断节点完整梳理（2026-01-09）
+
+### 6.1 判断节点总览
+
+根据代码审查，赛博玄数共有以下关键判断节点：
+
+| 序号 | 节点 | 位置 | 当前实现 | AI备用 | 重要性 |
+|------|------|------|----------|--------|--------|
+| 1 | 破冰输入解析 | NLPParser.parse_icebreak_input | AI为主 | ✅代码备用 | 高 |
+| 2 | 出生信息解析 | NLPParser.parse_birth_info | AI为主 | ✅代码备用 | 高 |
+| 3 | 时辰确定性识别 | NLPParser._analyze_time_expression | 代码为主 | ❌ | 高 |
+| 4 | 验证反馈解析 | NLPParser.parse_verification_feedback | AI为主 | ✅代码备用 | 中 |
+| 5 | 时辰推断 | NLPParser.infer_birth_hour | AI为主 | ❌ | 中 |
+| 6 | 理论适配度计算 | TheorySelector.calculate_theory_fitness | 纯代码 | ❌ | 高 |
+| 7 | MBTI匹配计算 | TheorySelector.calculate_mbti_matching | 纯代码 | ❌ | 中 |
+| 8 | 问题类型识别 | QAHandler.identify_question_type | 纯代码 | 可加AI | 中 |
+| 9 | 理论冲突检测 | create_conflict_info | 纯代码 | ❌ | 高 |
+| 10 | 仲裁理论选择 | ArbitrationSystem.request_arbitration | 纯代码 | ❌ | 中 |
+| 11 | 仲裁结果分析 | ArbitrationSystem.execute_arbitration | AI为主 | ✅规则备用 | 高 |
+| 12 | 吉凶判断提取 | _extract_judgment | 纯代码 | 可加AI | 中 |
+| 13 | 置信度计算 | ReportGenerator.calculate_overall_confidence | 纯代码 | ❌ | 中 |
+| 14 | FlowGuard输入验证 | FlowGuard.validate_input | 代码为主 | ✅AI增强 | 高 |
+| 15 | FlowGuard智能理解 | FlowGuard.smart_understand_input | AI为主 | ❌ | 中 |
+| 16 | 时辰状态处理 | ShichenHandler.parse_time_input | 纯代码 | ❌ | 高 |
+| 17 | 真太阳时计算 | TrueSolarTimeCalculator.calculate | 纯代码 | ❌ | 低 |
+| 18 | 事件时辰推断 | ShichenHandler.narrow_by_event | TODO | 需AI | 中 |
+
+### 6.2 AI+代码双重验证机制设计
+
+**设计原则**：
+1. **代码优先**：确定性高的验证用代码，快速、稳定、无成本
+2. **AI备用**：代码验证失败或不完整时，调用AI增强
+3. **结果合并**：AI提取的信息与代码结果合并，取并集
+
+**已实现的双重验证**：
+
+```
+┌─────────────────────────────────────────────────────┐
+│           AI+代码双重验证流程                        │
+├─────────────────────────────────────────────────────┤
+│  用户输入                                            │
+│      │                                              │
+│      ▼                                              │
+│  ┌──────────────┐                                   │
+│  │ 代码验证器    │ ← 正则、关键词、规则              │
+│  └──────┬───────┘                                   │
+│         │                                           │
+│   ┌─────┴─────┐                                     │
+│   │ 是否成功？  │                                     │
+│   └─────┬─────┘                                     │
+│     ↙      ↘                                        │
+│   是        否                                       │
+│   │          │                                      │
+│   │    ┌─────▼─────┐                                │
+│   │    │ AI验证器   │ ← LLM信息提取                  │
+│   │    └─────┬─────┘                                │
+│   │          │                                      │
+│   │    ┌─────▼─────┐                                │
+│   │    │ 合并结果   │                                │
+│   │    └─────┬─────┘                                │
+│   │          │                                      │
+│   ▼          ▼                                      │
+│  ┌───────────────────┐                              │
+│  │   返回验证结果      │                              │
+│  └───────────────────┘                              │
+└─────────────────────────────────────────────────────┘
+```
+
+**FlowGuard中的实现示例**：
+
+```python
+async def validate_input_with_ai(self, user_message, stage):
+    # 1. 代码验证（快速）
+    code_result = self.validate_input(user_message, stage)
+
+    if code_result.status == InputStatus.VALID:
+        return code_result  # 代码搞定，不用AI
+
+    # 2. AI验证（备用）
+    if self.ai_validation_enabled:
+        ai_extracted = await self._ai_validate(user_message, stage)
+
+        if ai_extracted:
+            # 合并结果
+            merged_data = {**code_result.extracted_data, **ai_extracted}
+            # 重新检查是否满足要求
+            ...
+
+    return result
+```
+
+### 6.3 需要加强AI能力的节点
+
+**高优先级**（建议增加AI备用）：
+
+1. **时辰确定性识别** (`_analyze_time_expression`)
+   - 当前：纯正则/关键词
+   - 问题：无法处理复杂口语表达如"应该是快中午的时候吧"
+   - 建议：AI识别不确定性程度
+
+2. **问题类型识别** (`identify_question_type`)
+   - 当前：关键词匹配
+   - 问题：用户表述可能跨类别或模糊
+   - 建议：AI判断主要意图
+
+3. **吉凶判断提取** (`_extract_judgment`)
+   - 当前：关键词检查
+   - 问题：某些理论结果表述复杂
+   - 建议：AI理解语义判断
+
+4. **事件时辰推断** (`narrow_by_event`)
+   - 当前：TODO stub
+   - 需求：根据用户历史事件缩小时辰范围
+   - 建议：必须用AI
+
+**低优先级**（代码足够）：
+
+1. 理论适配度计算 - 向量计算，无需AI
+2. MBTI匹配 - 查表即可
+3. 置信度计算 - 规则计算
+4. 真太阳时计算 - 数学公式
+
+### 6.4 FlowGuard集成完成记录
+
+**集成位置**：`conversation_service.py`
+
+**集成方式**：
+```python
+# 导入
+from core.flow_guard import get_flow_guard, InputStatus
+
+# 初始化（注入API管理器）
+def _init_handlers(self):
+    self.flow_guard = get_flow_guard(self.api_manager)
+
+# 阶段同步
+def _sync_flow_guard_stage(self, stage: ConversationStage):
+    stage_mapping = {
+        ConversationStage.INIT: "STAGE1_ICEBREAK",
+        ConversationStage.STAGE1_ICEBREAK: "STAGE1_ICEBREAK",
+        ConversationStage.STAGE2_BASIC_INFO: "STAGE2_BASIC_INFO",
+        # ...
+    }
+    flow_guard_stage = stage_mapping.get(stage)
+    if flow_guard_stage:
+        self.flow_guard.set_stage(flow_guard_stage)
+
+# 重试提示使用FlowGuard进度展示
+def _retry_msg(self, stage: str) -> str:
+    progress_display = self.flow_guard.generate_progress_display()
+    stage_prompt = self.flow_guard.generate_stage_prompt()
+    return f"...\n{progress_display}\n---\n{stage_prompt}"
+```
+
+---
+
+## 七、待探索问题
 
 1. **左侧导航栏动画效果**：收起/展开动画如何实现最流畅？
 2. **快速结论卡片进行中动画**：用QPropertyAnimation还是CSS动画？
