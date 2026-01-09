@@ -947,7 +947,42 @@ async def validate_input_with_ai(self, user_message, stage):
 3. 置信度计算 - 规则计算
 4. 真太阳时计算 - 数学公式
 
-### 6.4 FlowGuard集成完成记录
+### 6.4 AI增强实现记录（2026-01-09）
+
+**统一任务类型配置**：
+
+在TaskRouter中新增任务类型：
+```python
+INPUT_ENHANCE = "输入增强验证"  # 统一的AI增强任务类型
+```
+
+默认配置（可在设置界面修改）：
+```python
+{
+    "api": "kimi",
+    "model": "kimi-k2-turbo",
+    "max_tokens": 1024,
+    "temperature": 0.3  # 低温度保证准确性
+}
+```
+
+**新增AI增强方法**：
+
+| 模块 | 方法 | 功能 |
+|------|------|------|
+| NLPParser | `analyze_time_expression_with_ai()` | 时辰确定性AI识别 |
+| NLPParser | `identify_question_type_with_ai()` | 问题类型AI识别 |
+| NLPParser | `extract_judgment_with_ai()` | 吉凶判断AI提取 |
+| NLPParser | `infer_hour_from_event_with_ai()` | 事件时辰AI推断 |
+| ShichenHandler | `narrow_by_event_with_ai()` | 时辰范围AI缩小 |
+| FlowGuard | `validate_input_with_ai()` | 输入验证AI增强 |
+
+**AI+代码双重机制统一**：
+1. 所有AI增强节点使用同一个任务类型：`INPUT_ENHANCE`
+2. 可在设置界面统一配置使用哪个API/模型
+3. 代码验证优先，AI作为备用增强
+
+### 6.5 FlowGuard集成完成记录
 
 **集成位置**：`conversation_service.py`
 

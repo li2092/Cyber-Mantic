@@ -15,6 +15,9 @@ from datetime import datetime
 from api.manager import APIManager
 from utils.logger import get_logger
 
+# AI增强任务类型（与TaskRouter统一）
+TASK_TYPE_INPUT_ENHANCE = "输入增强验证"
+
 
 class NLPParser:
     """
@@ -798,3 +801,312 @@ class NLPParser:
             self.logger.error(f"事件时辰推断失败: {e}")
 
         return birth_info
+
+    # ==================== V2增强：AI备用验证方法 ====================
+
+    async def analyze_time_expression_with_ai(self, text: str) -> Dict[str, Any]:
+        """
+        AI增强：分析时间表达的确定性（代码识别失败时使用）
+
+        处理复杂口语表达如：
+        - "应该是快中午的时候吧"
+        - "好像是天还没亮那会儿"
+        - "记得是吃完午饭的时候"
+
+        Args:
+            text: 用户输入文本
+
+        Returns:
+            AI分析结果
+        """
+        # 先用代码分析
+        code_result = self._analyze_time_expression(text)
+
+        # 如果代码已经能确定，直接返回
+        if code_result["status"] in ["certain", "known_range"]:
+            return code_result
+
+        # 代码无法确定时，使用AI
+        prompt = f"""你是一个专门分析时间表达的助手。请分析用户描述中的时间信息。
+
+用户输入：
+{text}
+
+请判断用户对出生时间的表达属于哪种类型，并返回JSON：
+
+```json
+{{
+    "status": "certain|known_range|uncertain|unknown",
+    "hour": 0-23或null,
+    "candidates": [可能的小时列表],
+    "range_name": "时段名称（如'上午'）或null",
+    "confidence_level": "用户对时间的确定程度描述",
+    "reasoning": "判断依据"
+}}
+```
+
+**status分类规则**：
+- certain: 用户明确知道具体时间点
+- known_range: 用户知道是某个时段（上午/下午/凌晨等）
+- uncertain: 用户不太确定，有模糊词（大概、可能、好像）
+- unknown: 用户明确表示不知道/不记得
+
+只返回JSON：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type=TASK_TYPE_INPUT_ENHANCE,
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            parsed = self.extract_json_from_response(response)
+
+            if parsed:
+                # 合并AI结果
+                code_result["status"] = parsed.get("status", code_result["status"])
+
+                if parsed.get("hour") is not None:
+                    # AI识别出了小时
+                    pass  # 会在调用方处理
+
+                if parsed.get("candidates"):
+                    code_result["candidates"] = parsed["candidates"]
+
+                if parsed.get("range_name"):
+                    code_result["time_text"] = parsed["range_name"]
+
+                code_result["ai_analysis"] = {
+                    "confidence_level": parsed.get("confidence_level"),
+                    "reasoning": parsed.get("reasoning")
+                }
+
+                self.logger.info(f"AI时间分析成功: {code_result}")
+                return code_result
+
+        except Exception as e:
+            self.logger.warning(f"AI时间分析失败: {e}")
+
+        return code_result
+
+    async def identify_question_type_with_ai(self, text: str) -> Dict[str, Any]:
+        """
+        AI增强：识别用户问题类型
+
+        处理复杂/跨类别/模糊的问题表述
+
+        Args:
+            text: 用户问题描述
+
+        Returns:
+            问题类型识别结果
+        """
+        prompt = f"""你是一个问题分类助手。请判断用户咨询的问题类型。
+
+用户问题：
+{text}
+
+可选类型：
+- 事业：工作、职业发展、跳槽、升职、创业、职场关系
+- 感情：恋爱、婚姻、姻缘、桃花、分手、复合
+- 财运：财富、投资、理财、收入、生意、亏损
+- 健康：身体、疾病、养生、医疗
+- 学业：考试、学习、升学、考研、资格证
+- 决策：选择、是否应该、要不要、该不该
+- 人际：人际关系、社交、家庭关系
+- 其他：以上都不匹配
+
+请返回JSON：
+```json
+{{
+    "primary_type": "主要类型",
+    "secondary_type": "次要类型或null",
+    "confidence": 0.0-1.0,
+    "keywords_found": ["找到的关键词"],
+    "reasoning": "分类依据"
+}}
+```
+
+只返回JSON：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type=TASK_TYPE_INPUT_ENHANCE,
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            parsed = self.extract_json_from_response(response)
+
+            if parsed:
+                self.logger.info(f"AI问题类型识别: {parsed}")
+                return parsed
+
+        except Exception as e:
+            self.logger.warning(f"AI问题类型识别失败: {e}")
+
+        return {"primary_type": "其他", "confidence": 0.5}
+
+    async def extract_judgment_with_ai(self, theory_result: str, theory_name: str) -> Dict[str, Any]:
+        """
+        AI增强：从理论分析结果中提取吉凶判断
+
+        处理复杂表述如：
+        - "虽有阻碍但终能成事"
+        - "先难后易，需耐心等待"
+        - "短期不利，长期看好"
+
+        Args:
+            theory_result: 理论分析结果文本
+            theory_name: 理论名称
+
+        Returns:
+            吉凶判断结果
+        """
+        prompt = f"""你是一个术数分析助手。请从以下{theory_name}分析结果中提取吉凶判断。
+
+分析结果：
+{theory_result[:1000]}
+
+请综合分析，判断整体趋势是吉是凶，返回JSON：
+
+```json
+{{
+    "judgment": "吉|凶|平",
+    "confidence": 0.0-1.0,
+    "short_term": "吉|凶|平（短期趋势）",
+    "long_term": "吉|凶|平（长期趋势）",
+    "key_points": ["关键判断点"],
+    "advice": "简要建议"
+}}
+```
+
+**判断规则**：
+- 吉：总体顺利、有利、成功概率高
+- 凶：总体不利、有阻碍、需谨慎
+- 平：中性、有好有坏、需要权衡
+
+只返回JSON：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type=TASK_TYPE_INPUT_ENHANCE,
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            parsed = self.extract_json_from_response(response)
+
+            if parsed:
+                self.logger.info(f"AI吉凶判断: {theory_name} -> {parsed.get('judgment')}")
+                return parsed
+
+        except Exception as e:
+            self.logger.warning(f"AI吉凶判断失败: {e}")
+
+        return {"judgment": "平", "confidence": 0.5}
+
+    async def infer_hour_from_event_with_ai(
+        self,
+        birth_info: Dict[str, Any],
+        event_description: str,
+        event_year: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        AI增强：根据历史事件推断出生时辰
+
+        这是narrow_by_event的AI实现
+
+        Args:
+            birth_info: 当前出生信息
+            event_description: 事件描述
+            event_year: 事件年份
+
+        Returns:
+            推断结果
+        """
+        year = birth_info.get("year")
+        month = birth_info.get("month")
+        day = birth_info.get("day")
+        current_candidates = birth_info.get("candidate_hours", list(range(24)))
+
+        prompt = f"""你是一位经验丰富的命理师，擅长根据人生重大事件反推出生时辰。
+
+用户出生信息：
+- 出生日期：{year}年{month}月{day}日
+- 当前候选时辰：{current_candidates}
+
+用户提供的历史事件：
+- 事件描述：{event_description}
+- 发生年份：{event_year if event_year else '未提供'}
+
+请结合八字命理、流年运势分析此事件，推断最可能的出生时辰。
+
+```json
+{{
+    "likely_hours": [最可能的小时列表],
+    "most_likely_hour": 最可能的单个小时或null,
+    "excluded_hours": [可以排除的小时],
+    "confidence": "高|中|低",
+    "analysis": {{
+        "event_type": "事件类型（事业变动/感情变化/财运/健康等）",
+        "related_stars": ["相关星曜/神煞"],
+        "reasoning": "推理过程"
+    }},
+    "suggestions": ["进一步验证建议"]
+}}
+```
+
+命理推断依据：
+- 大运、流年与日主的关系
+- 事件发生时的神煞、星曜触发
+- 不同时辰的命格特征与事件的对应关系
+
+只返回JSON：
+"""
+
+        try:
+            response = await self.api_manager.call_api(
+                task_type=TASK_TYPE_INPUT_ENHANCE,
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            parsed = self.extract_json_from_response(response)
+
+            if parsed:
+                result = {
+                    "likely_hours": parsed.get("likely_hours", []),
+                    "most_likely_hour": parsed.get("most_likely_hour"),
+                    "excluded_hours": parsed.get("excluded_hours", []),
+                    "confidence": parsed.get("confidence", "低"),
+                    "analysis": parsed.get("analysis", {}),
+                    "suggestions": parsed.get("suggestions", [])
+                }
+
+                # 更新候选小时
+                if result["likely_hours"]:
+                    new_candidates = [h for h in current_candidates if h in result["likely_hours"]]
+                    if new_candidates:
+                        result["updated_candidates"] = new_candidates
+                    else:
+                        result["updated_candidates"] = result["likely_hours"]
+                elif result["excluded_hours"]:
+                    result["updated_candidates"] = [h for h in current_candidates if h not in result["excluded_hours"]]
+                else:
+                    result["updated_candidates"] = current_candidates
+
+                self.logger.info(f"AI事件时辰推断: {result}")
+                return result
+
+        except Exception as e:
+            self.logger.error(f"AI事件时辰推断失败: {e}")
+
+        return {
+            "likely_hours": [],
+            "confidence": "低",
+            "updated_candidates": current_candidates
+        }

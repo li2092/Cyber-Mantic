@@ -87,6 +87,7 @@ ShichenInfo → BaziCalculator.calculate_with_shichen_info()
 - 出生信息解析 → kimi/kimi-k2-turbo-preview
 - 冲突解决分析 → deepseek/deepseek-reasoner
 - 回溯验证生成 → gemini/gemini-2.0-flash-exp
+- **输入增强验证** → kimi/kimi-k2-turbo（统一的AI增强任务）
 
 ### 2.4 FlowGuard流程监管模块
 
@@ -208,12 +209,33 @@ result = calculator.get_correction_for_birth(
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| 事件验证推断 | TODO | `narrow_by_event()` 需要实现 |
+| 事件验证推断 | ✅完成 | `narrow_by_event()` + `narrow_by_event_with_ai()` |
 | 推演UI真太阳时 | TODO | 需要添加经度输入界面 |
 | 仲裁结果UI | 待优化 | 需要更好的可视化展示 |
-| 时辰确定性AI增强 | 建议 | `_analyze_time_expression` 增加AI备用 |
-| 问题类型AI识别 | 建议 | `identify_question_type` 增加AI备用 |
+| 时辰确定性AI增强 | ✅完成 | `analyze_time_expression_with_ai()` |
+| 问题类型AI识别 | ✅完成 | `identify_question_type_with_ai()` |
+| 吉凶判断AI提取 | ✅完成 | `extract_judgment_with_ai()` |
 | 阶段六测试 | 未开始 | 完整功能测试 |
+
+## 五点五、AI增强验证模块
+
+**统一任务类型**: `INPUT_ENHANCE = "输入增强验证"`
+
+所有AI增强节点统一使用此任务类型，可在设置界面配置：
+
+| 模块 | 方法 | 功能 |
+|------|------|------|
+| NLPParser | `analyze_time_expression_with_ai()` | 时辰确定性AI识别 |
+| NLPParser | `identify_question_type_with_ai()` | 问题类型AI识别 |
+| NLPParser | `extract_judgment_with_ai()` | 吉凶判断AI提取 |
+| NLPParser | `infer_hour_from_event_with_ai()` | 事件时辰AI推断 |
+| ShichenHandler | `narrow_by_event_with_ai()` | 时辰范围AI缩小 |
+| FlowGuard | `validate_input_with_ai()` | 输入验证AI增强 |
+
+**设计原则**：
+1. 代码验证优先（快速、稳定、无成本）
+2. AI作为备用增强（处理复杂/模糊输入）
+3. 统一配置入口（设置界面可修改使用的API/模型）
 
 ---
 

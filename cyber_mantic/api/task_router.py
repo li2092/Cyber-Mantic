@@ -26,6 +26,8 @@ class TaskType(Enum):
     CONFLICT_RESOLUTION = "冲突解决分析"
     USER_FEEDBACK = "用户反馈处理"
     VERIFICATION_GEN = "回溯验证生成"
+    # V2新增：AI增强验证类
+    INPUT_ENHANCE = "输入增强验证"  # FlowGuard/时辰确定性/问题类型等AI增强
 
 
 @dataclass
@@ -162,6 +164,13 @@ DEFAULT_TASK_CONFIG = {
         "model": "gemini-2.0-flash-exp",
         "max_tokens": 2048,
         "temperature": 0.7
+    },
+    # V2新增：输入增强验证（用于FlowGuard、时辰确定性、问题类型、吉凶判断等AI增强）
+    TaskType.INPUT_ENHANCE.value: {
+        "api": "kimi",
+        "model": "kimi-k2-turbo",
+        "max_tokens": 1024,
+        "temperature": 0.3  # 低温度保证准确性
     }
 }
 

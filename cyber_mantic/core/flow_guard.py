@@ -30,6 +30,9 @@ from utils.logger import get_logger
 if TYPE_CHECKING:
     from api.manager import APIManager
 
+# AI增强任务类型（统一使用，可在设置中配置）
+TASK_TYPE_INPUT_ENHANCE = "输入增强验证"
+
 
 class InputStatus(Enum):
     """输入状态"""
@@ -438,7 +441,7 @@ class FlowGuard:
 
         try:
             response = await self.api_manager.call_api(
-                task_type="简单问题解答",
+                task_type=TASK_TYPE_INPUT_ENHANCE,  # 使用统一的AI增强任务类型
                 prompt=prompt,
                 enable_dual_verification=False
             )
@@ -517,7 +520,7 @@ class FlowGuard:
 
         try:
             response = await self.api_manager.call_api(
-                task_type="简单问题解答",
+                task_type=TASK_TYPE_INPUT_ENHANCE,  # 使用统一的AI增强任务类型
                 prompt=prompt,
                 enable_dual_verification=False
             )

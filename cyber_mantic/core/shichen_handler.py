@@ -563,22 +563,123 @@ class ShichenHandler:
         self,
         shichen_info: ShichenInfo,
         event_description: str,
-        event_year: Optional[int] = None
+        event_year: Optional[int] = None,
+        birth_info: Optional[Dict[str, Any]] = None
     ) -> ShichenInfo:
         """
-        根据历史事件缩小时辰范围
+        根据历史事件缩小时辰范围（同步方法，使用代码规则）
 
         Args:
             shichen_info: 当前时辰信息
             event_description: 事件描述
             event_year: 事件发生年份
+            birth_info: 出生信息字典
 
         Returns:
             更新后的时辰信息
         """
-        # TODO: 实现基于事件的时辰推断
-        # 这需要结合AI分析来完成
         self.logger.info(f"事件验证推断: {event_description}")
+
+        # 代码规则推断（基于事件类型的简单启发式规则）
+        event_lower = event_description.lower()
+
+        # 事件类型启发式规则
+        event_hints = {
+            # 早起型人的事件暗示
+            "早起": [5, 6, 7, 8],
+            "晨跑": [5, 6, 7],
+            "早操": [6, 7],
+            # 夜猫子型暗示
+            "熬夜": [21, 22, 23, 0, 1],
+            "夜班": [21, 22, 23, 0],
+            "通宵": [23, 0, 1, 2, 3],
+            # 工作相关
+            "早会": [8, 9],
+            "加班": [18, 19, 20, 21],
+        }
+
+        candidates = shichen_info.candidates or list(range(24))
+
+        for hint, hours in event_hints.items():
+            if hint in event_lower:
+                new_candidates = [h for h in candidates if h in hours]
+                if new_candidates:
+                    candidates = new_candidates
+                    break
+
+        # 如果范围缩小了，更新shichen_info
+        if len(candidates) < len(shichen_info.candidates or list(range(24))):
+            shichen_info.candidates = candidates
+            shichen_info.source = f"基于事件推断: {event_description[:20]}"
+
+            if len(candidates) <= 2:
+                shichen_info.status = ShichenStatus.UNCERTAIN
+                shichen_info.hour = candidates[0]
+                shichen_info.confidence = 0.6
+
+        return shichen_info
+
+    async def narrow_by_event_with_ai(
+        self,
+        shichen_info: ShichenInfo,
+        event_description: str,
+        event_year: Optional[int] = None,
+        birth_info: Optional[Dict[str, Any]] = None,
+        nlp_parser: Optional[Any] = None
+    ) -> ShichenInfo:
+        """
+        根据历史事件缩小时辰范围（AI增强版）
+
+        Args:
+            shichen_info: 当前时辰信息
+            event_description: 事件描述
+            event_year: 事件发生年份
+            birth_info: 出生信息字典
+            nlp_parser: NLP解析器实例（用于AI调用）
+
+        Returns:
+            更新后的时辰信息
+        """
+        self.logger.info(f"AI增强事件验证推断: {event_description}")
+
+        # 如果没有NLP解析器，使用代码规则
+        if not nlp_parser:
+            return self.narrow_by_event(shichen_info, event_description, event_year, birth_info)
+
+        # 准备出生信息
+        if not birth_info:
+            birth_info = {
+                "hour": shichen_info.hour,
+                "candidate_hours": shichen_info.candidates or list(range(24))
+            }
+        else:
+            birth_info["candidate_hours"] = shichen_info.candidates or list(range(24))
+
+        try:
+            # 调用NLP解析器的AI方法
+            ai_result = await nlp_parser.infer_hour_from_event_with_ai(
+                birth_info=birth_info,
+                event_description=event_description,
+                event_year=event_year
+            )
+
+            # 更新候选时辰
+            if ai_result.get("updated_candidates"):
+                shichen_info.candidates = ai_result["updated_candidates"]
+
+            # 如果AI有较高置信度的推断
+            if ai_result.get("confidence") in ["高", "中"] and ai_result.get("most_likely_hour") is not None:
+                shichen_info.hour = ai_result["most_likely_hour"]
+                shichen_info.status = ShichenStatus.UNCERTAIN
+                shichen_info.confidence = 0.7 if ai_result["confidence"] == "高" else 0.55
+
+            shichen_info.source = f"AI事件推断: {event_description[:20]}"
+
+            self.logger.info(f"AI事件推断结果: candidates={shichen_info.candidates}, hour={shichen_info.hour}")
+
+        except Exception as e:
+            self.logger.warning(f"AI事件推断失败，回退到代码规则: {e}")
+            return self.narrow_by_event(shichen_info, event_description, event_year, birth_info)
 
         return shichen_info
 
