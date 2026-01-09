@@ -58,11 +58,27 @@ class TestAPIManager:
         assert api == "claude"
 
     def test_get_api_for_task_quick_interaction(self):
-        """测试快速交互任务选择API"""
+        """测试快速交互任务选择API（V2版本：优先使用primary_api）"""
         manager = APIManager(self.config)
 
+        # V2: 由于primary_api是claude且可用，所以返回claude
+        # 这是预期行为，用户设置优先于任务类型映射
         api = manager.get_api_for_task("快速交互问答")
-        assert api == "deepseek"
+        assert api == "claude"  # primary_api优先
+
+    def test_get_api_for_task_uses_task_mapping_when_no_primary(self):
+        """测试primary_api不可用时使用任务类型映射"""
+        # claude和deepseek都有API key，但primary_api设为不存在的API
+        config_no_primary = {
+            "claude_api_key": "test-key",
+            "deepseek_api_key": "test-key",
+            "primary_api": "nonexistent"  # 不存在的API
+        }
+        manager = APIManager(config_no_primary)
+
+        # primary_api不可用，使用任务映射
+        api = manager.get_api_for_task("快速交互问答")
+        assert api == "deepseek"  # 按任务映射应选deepseek
 
     def test_get_api_for_task_conflict_resolution(self):
         """测试冲突解决任务选择API"""

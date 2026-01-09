@@ -131,8 +131,12 @@ class TestBugFix3_NoBarExcept:
 
     def test_history_tab_disconnect_uses_exception(self):
         """测试history_tab使用Exception而非裸except"""
-        # 直接读取文件内容，避免PyQt6 mock问题
-        with open('/home/user/-/cyber_mantic/ui/tabs/history_tab.py', 'r', encoding='utf-8') as f:
+        import os
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(tests_dir)
+        file_path = os.path.join(project_root, 'cyber_mantic', 'ui', 'tabs', 'history_tab.py')
+
+        with open(file_path, 'r', encoding='utf-8') as f:
             source = f.read()
 
         # 检查_display_history方法中的except使用
@@ -147,8 +151,12 @@ class TestBugFix3_NoBarExcept:
 
     def test_history_tab_cleanup_uses_exception(self):
         """测试history_tab cleanup使用Exception"""
-        # 直接读取文件内容
-        with open('/home/user/-/cyber_mantic/ui/tabs/history_tab.py', 'r', encoding='utf-8') as f:
+        import os
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(tests_dir)
+        file_path = os.path.join(project_root, 'cyber_mantic', 'ui', 'tabs', 'history_tab.py')
+
+        with open(file_path, 'r', encoding='utf-8') as f:
             source = f.read()
 
         import re
@@ -164,8 +172,8 @@ class TestBugFix3_NoBarExcept:
         project_root = os.path.dirname(tests_dir)
 
         # 检查主控制器和输入面板（都有cleanup方法）
-        analysis_tab_path = os.path.join(project_root, 'ui/tabs/analysis/analysis_tab.py')
-        input_panel_path = os.path.join(project_root, 'ui/tabs/analysis/input_panel.py')
+        analysis_tab_path = os.path.join(project_root, 'cyber_mantic', 'ui', 'tabs', 'analysis', 'analysis_tab.py')
+        input_panel_path = os.path.join(project_root, 'cyber_mantic', 'ui', 'tabs', 'analysis', 'input_panel.py')
 
         import re
         bare_except_pattern = r'except:\s*\n\s+'
@@ -183,8 +191,12 @@ class TestBugFix4_NoDeadCode:
 
     def test_api_manager_get_endpoint_has_no_dead_code(self):
         """测试API Manager _get_endpoint_name没有死代码"""
-        # 直接读取文件内容
-        with open('/home/user/-/cyber_mantic/api/manager.py', 'r', encoding='utf-8') as f:
+        import os
+        tests_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(tests_dir)
+        file_path = os.path.join(project_root, 'cyber_mantic', 'api', 'manager.py')
+
+        with open(file_path, 'r', encoding='utf-8') as f:
             source = f.read()
 
         # 检查return语句后不应该有检查available_apis的代码

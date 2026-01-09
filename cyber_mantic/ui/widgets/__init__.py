@@ -7,6 +7,17 @@ from .progress_widget import ProgressWidget
 from .export_menu_button import ExportMenuButton
 from .theme_settings_widget import ThemeSettingsWidget
 from .feature_status_widget import FeatureStatusWidget
+from .verification_widget import (
+    VerificationPanel,
+    VerificationBubble,
+    SingleQuestionWidget
+)
+from .api_settings_widget import (
+    APISettingsWidget,
+    GlobalAPISettings,
+    TaskAPISettings,
+    APIKeySettings
+)
 
 __all__ = [
     'ChatWidget',
@@ -16,4 +27,11 @@ __all__ = [
     'ExportMenuButton',
     'ThemeSettingsWidget',
     'FeatureStatusWidget',
+    'VerificationPanel',
+    'VerificationBubble',
+    'SingleQuestionWidget',
+    'APISettingsWidget',
+    'GlobalAPISettings',
+    'TaskAPISettings',
+    'APIKeySettings',
 ]

@@ -607,7 +607,7 @@ class QAHandler:
 
         elif question_type == "theory_explanation":
             return f"""
-使用的理论：{', '.join(context_data.get('selected_theories', []))}
+使用的理论：{', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in context_data.get('selected_theories', [])])}
 
 理论分析状态：
 {json.dumps(context_data.get('theory_results_summary', {}), ensure_ascii=False, indent=2)}

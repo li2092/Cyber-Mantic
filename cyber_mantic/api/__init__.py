@@ -7,6 +7,8 @@
 - unified_client.py: 统一AI客户端（新版）
 - prompt_loader.py: Prompt加载器
 - prompts.py: Prompt模板（旧版，向后兼容）
+- task_router.py: 任务路由器（V2环节级配置）
+- clients/: 各厂商API客户端
 """
 from .manager import APIManager
 from .prompts import PromptTemplates
@@ -24,6 +26,20 @@ from .unified_client import (
     AIClientManager,
     DegradedResponse,
     create_client_manager_from_config
+)
+from .task_router import (
+    TaskRouter,
+    TaskConfig,
+    GlobalAPIConfig,
+    SUPPORTED_APIS,
+    get_task_router
+)
+from .clients import (
+    QwenClient,
+    DoubaoClient,
+    BaichuanClient,
+    GLMClient,
+    OpenRouterClient
 )
 
 __all__ = [
@@ -46,4 +62,16 @@ __all__ = [
     'AIClientManager',
     'DegradedResponse',
     'create_client_manager_from_config',
+    # 任务路由器（V2）
+    'TaskRouter',
+    'TaskConfig',
+    'GlobalAPIConfig',
+    'SUPPORTED_APIS',
+    'get_task_router',
+    # 新厂商客户端
+    'QwenClient',
+    'DoubaoClient',
+    'BaichuanClient',
+    'GLMClient',
+    'OpenRouterClient',
 ]

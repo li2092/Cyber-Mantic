@@ -1,6 +1,11 @@
 """
 八字模块 - 计算器
 纯代码实现，不调用LLM
+
+V2增强：
+- 三柱分析模式（无时辰时的降级计算）
+- 多时辰并行计算
+- 时辰处理器集成
 """
 from datetime import datetime, timedelta
 from typing import Tuple, Dict, List, Any, Optional
@@ -1037,3 +1042,323 @@ class BaZiCalculator:
             advice_parts.append("4. 婚前务必寻求专业命理师的详细指导")
 
         return "\n".join(advice_parts)
+
+    # ==================== V2增强：三柱分析与并行计算 ====================
+
+    def calculate_three_pillar(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        gender: Optional[str] = None,
+        calendar_type: str = "solar"
+    ) -> Dict[str, Any]:
+        """
+        三柱分析模式（无时辰时的降级计算）
+
+        当用户不记得出生时辰时，使用年月日三柱进行分析
+        提供特殊的三柱解读视角
+
+        Args:
+            year: 出生年
+            month: 出生月
+            day: 出生日
+            gender: 性别
+            calendar_type: 历法类型
+
+        Returns:
+            三柱分析结果
+        """
+        # 农历转换
+        if calendar_type == "lunar":
+            try:
+                solar_date = LunarCalendar.lunar_to_solar(year, month, day, is_leap_month=False)
+                year = solar_date.year
+                month = solar_date.month
+                day = solar_date.day
+            except ValueError as e:
+                raise ValueError(f"农历日期转换失败：{e}")
+
+        # 计算三柱
+        year_pillar = self.calculate_year_pillar(year, month, day)
+        month_pillar = self.calculate_month_pillar(year, month, day)
+        day_pillar = self.calculate_day_pillar(year, month, day)
+
+        # 日主
+        day_master = day_pillar[0]
+
+        # 三柱列表
+        three_pillars = [
+            f"{year_pillar[0]}{year_pillar[1]}",
+            f"{month_pillar[0]}{month_pillar[1]}",
+            f"{day_pillar[0]}{day_pillar[1]}"
+        ]
+
+        # 三柱十神
+        ten_gods = {
+            "年干": SHI_SHEN[day_master][year_pillar[0]],
+            "月干": SHI_SHEN[day_master][month_pillar[0]],
+            "日干": SHI_SHEN[day_master][day_pillar[0]]
+        }
+
+        # 三柱五行（6个元素）
+        wuxing_count = self.calculate_wuxing_count([year_pillar, month_pillar, day_pillar])
+
+        # 纳音
+        nayin = {
+            "年柱": NA_YIN.get(f"{year_pillar[0]}{year_pillar[1]}", "未知"),
+            "月柱": NA_YIN.get(f"{month_pillar[0]}{month_pillar[1]}", "未知"),
+            "日柱": NA_YIN.get(f"{day_pillar[0]}{day_pillar[1]}", "未知")
+        }
+
+        # 简化用神分析
+        useful_god_analysis = self.analyze_useful_god(day_master, wuxing_count)
+
+        # 大运（可能不够准确因为缺少时柱）
+        dayun_list = []
+        if gender:
+            dayun_list = self.calculate_dayun(year_pillar, month_pillar, gender, year, month, day)
+
+        # 三柱神煞（无时支）
+        shensha = self.calculate_shensha(
+            year_gan=year_pillar[0],
+            year_zhi=year_pillar[1],
+            month_zhi=month_pillar[1],
+            day_gan=day_pillar[0],
+            day_zhi=day_pillar[1],
+            hour_zhi=None
+        )
+
+        shensha_analysis = self.analyze_shensha_influence(shensha)
+
+        # 三柱模式特殊说明
+        limitations = [
+            "无时柱：部分格局分析无法进行",
+            "时柱十神未知，人际关系分析受限",
+            "晚年运势分析精度降低",
+            "子女宫信息缺失"
+        ]
+
+        # 三柱模式推荐理论
+        recommended_theories = [
+            "梅花易数（不依赖时辰）",
+            "小六壬（可用当前时间）",
+            "测字术（不依赖时辰）"
+        ]
+
+        return {
+            "mode": "three_pillar",
+            "三柱": three_pillars,
+            "年柱": {"天干": year_pillar[0], "地支": year_pillar[1], "纳音": nayin["年柱"]},
+            "月柱": {"天干": month_pillar[0], "地支": month_pillar[1], "纳音": nayin["月柱"]},
+            "日柱": {"天干": day_pillar[0], "地支": day_pillar[1], "纳音": nayin["日柱"]},
+            "时柱": None,
+            "日主": day_master,
+            "十神": ten_gods,
+            "五行统计": wuxing_count,
+            "用神分析": useful_god_analysis,
+            "神煞": shensha,
+            "神煞分析": shensha_analysis,
+            "大运": dayun_list,
+            "置信度": 0.65,  # 三柱模式置信度较低
+            "局限性": limitations,
+            "推荐补充理论": recommended_theories
+        }
+
+    def calculate_parallel_bazi(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        candidate_hours: List[int],
+        gender: Optional[str] = None,
+        calendar_type: str = "solar"
+    ) -> Dict[str, Any]:
+        """
+        并行计算多个候选时辰的八字
+
+        当用户时辰不确定但有范围时，并行计算所有候选
+
+        Args:
+            year: 出生年
+            month: 出生月
+            day: 出生日
+            candidate_hours: 候选时辰列表
+            gender: 性别
+            calendar_type: 历法类型
+
+        Returns:
+            包含所有候选八字分析的结果
+        """
+        results = []
+        base_result = None
+
+        for hour in candidate_hours:
+            try:
+                # 计算该时辰的完整八字
+                bazi_result = self.calculate_full_bazi(
+                    year, month, day, hour, gender, calendar_type
+                )
+
+                # 保存第一个作为基准对比
+                if base_result is None:
+                    base_result = bazi_result
+
+                # 标记该时辰的八字
+                bazi_result["candidate_hour"] = hour
+                bazi_result["hour_zhi"] = HOUR_ZHI_MAP.get(hour, "子")
+
+                results.append(bazi_result)
+
+            except Exception as e:
+                results.append({
+                    "candidate_hour": hour,
+                    "error": str(e)
+                })
+
+        # 分析不同时辰之间的差异
+        differences = self._analyze_hour_differences(results) if len(results) > 1 else []
+
+        # 计算整体置信度（基于候选数量反推）
+        overall_confidence = max(0.5, 1.0 - (len(candidate_hours) - 1) * 0.1)
+
+        return {
+            "mode": "parallel_calculation",
+            "candidate_count": len(candidate_hours),
+            "results": results,
+            "differences": differences,
+            "overall_confidence": overall_confidence,
+            "recommendation": self._generate_hour_recommendation(results, differences)
+        }
+
+    def _analyze_hour_differences(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """分析不同时辰八字之间的差异"""
+        differences = []
+
+        if len(results) < 2:
+            return differences
+
+        # 比较时柱干支
+        hour_pillars = [(r.get("candidate_hour"), r.get("时柱")) for r in results if r.get("时柱")]
+
+        # 比较十神
+        ten_gods_list = [(r.get("candidate_hour"), r.get("十神", {}).get("时干")) for r in results if r.get("十神")]
+
+        unique_hour_ganzhi = set(f"{p[1]['天干']}{p[1]['地支']}" for p in hour_pillars if p[1])
+        unique_ten_gods = set(t[1] for t in ten_gods_list if t[1])
+
+        differences.append({
+            "aspect": "时柱干支",
+            "variations": list(unique_hour_ganzhi),
+            "count": len(unique_hour_ganzhi),
+            "impact": "高" if len(unique_hour_ganzhi) > 3 else "中" if len(unique_hour_ganzhi) > 1 else "低"
+        })
+
+        differences.append({
+            "aspect": "时干十神",
+            "variations": list(unique_ten_gods),
+            "count": len(unique_ten_gods),
+            "impact": "高" if len(unique_ten_gods) > 3 else "中" if len(unique_ten_gods) > 1 else "低"
+        })
+
+        # 比较用神分析是否一致
+        strength_list = [r.get("用神分析", {}).get("日主强弱") for r in results if r.get("用神分析")]
+        unique_strength = set(s for s in strength_list if s)
+
+        differences.append({
+            "aspect": "日主强弱",
+            "variations": list(unique_strength),
+            "count": len(unique_strength),
+            "impact": "极高" if len(unique_strength) > 1 else "低"
+        })
+
+        return differences
+
+    def _generate_hour_recommendation(
+        self,
+        results: List[Dict[str, Any]],
+        differences: List[Dict[str, Any]]
+    ) -> str:
+        """生成时辰选择建议"""
+        # 检查差异程度
+        high_impact = sum(1 for d in differences if d.get("impact") in ["高", "极高"])
+
+        if high_impact >= 2:
+            return "各候选时辰分析结果差异较大，建议通过以下方式确定时辰：\n" \
+                   "1. 询问家人确认出生时间\n" \
+                   "2. 查看出生证明或户口本\n" \
+                   "3. 提供重大生活事件进行反推验证"
+        elif high_impact == 1:
+            return "各候选时辰有一定差异，但核心分析相近。\n" \
+                   "建议参考共同特征，保守解读差异部分。"
+        else:
+            return "各候选时辰分析结果相近，可综合参考所有分析。\n" \
+                   "时辰差异对本次分析影响较小。"
+
+    def calculate_with_shichen_info(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        shichen_info: Any,  # ShichenInfo from shichen_handler
+        gender: Optional[str] = None,
+        calendar_type: str = "solar"
+    ) -> Dict[str, Any]:
+        """
+        使用ShichenInfo进行智能八字计算
+
+        根据时辰信息的状态自动选择计算模式
+
+        Args:
+            year, month, day: 出生日期
+            shichen_info: ShichenInfo对象
+            gender: 性别
+            calendar_type: 历法类型
+
+        Returns:
+            八字分析结果
+        """
+        # 延迟导入避免循环依赖
+        try:
+            from core.shichen_handler import ShichenStatus
+        except ImportError:
+            # 回退到普通计算
+            return self.calculate_full_bazi(year, month, day, None, gender, calendar_type)
+
+        status = shichen_info.status
+
+        if status == ShichenStatus.CERTAIN:
+            # 确定时辰：正常四柱计算
+            return self.calculate_full_bazi(
+                year, month, day, shichen_info.hour, gender, calendar_type
+            )
+
+        elif status == ShichenStatus.UNKNOWN:
+            # 完全未知：使用三柱模式
+            result = self.calculate_three_pillar(year, month, day, gender, calendar_type)
+            result["shichen_status"] = "unknown"
+            return result
+
+        else:
+            # KNOWN_RANGE 或 UNCERTAIN：并行计算
+            candidates = shichen_info.candidates
+            if not candidates:
+                candidates = list(range(24))
+
+            # 限制候选数量以避免计算过多
+            if len(candidates) > 6:
+                # 按时辰分组，每个时辰取代表小时
+                dizhi_hours = {}
+                for h in candidates:
+                    dizhi = HOUR_ZHI_MAP.get(h, "子")
+                    if dizhi not in dizhi_hours:
+                        dizhi_hours[dizhi] = h
+                candidates = list(dizhi_hours.values())
+
+            result = self.calculate_parallel_bazi(
+                year, month, day, candidates, gender, calendar_type
+            )
+            result["shichen_status"] = status.value if hasattr(status, 'value') else str(status)
+            result["shichen_confidence"] = shichen_info.confidence
+
+            return result

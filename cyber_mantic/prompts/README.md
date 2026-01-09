@@ -41,11 +41,22 @@ docs/prompts/
 │   ├── profile_analysis.md      # 画像分析（DeepSeek-R1）
 │   └── care_response.md         # 关怀话语生成
 │
-└── library/                     # 典籍模块
-    ├── summarize.md             # 总结
-    ├── insight.md               # 洞察
-    ├── study_plan.md            # 学习方案
-    └── reflection.md            # 心得生成
+├── library/                     # 典籍模块
+│   ├── summarize.md             # 总结
+│   ├── insight.md               # 洞察
+│   ├── study_plan.md            # 学习方案
+│   └── reflection.md            # 心得生成
+│
+├── enhance/                     # AI增强验证（V2新增）
+│   ├── time_expression.md       # 时辰确定性分析
+│   ├── question_type.md         # 问题类型识别
+│   ├── judgment_extract.md      # 吉凶判断提取
+│   ├── event_hour_infer.md      # 事件时辰推断
+│   ├── input_validate.md        # 输入信息提取
+│   └── smart_understand.md      # 智能理解输入
+│
+└── verification/                # 回溯验证（V2新增）
+    └── questions_gen.md         # 验证问题生成
 ```
 
 ---
