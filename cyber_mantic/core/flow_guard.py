@@ -660,7 +660,7 @@ class FlowGuard:
         error_messages = {
             "parse_failed": "抱歉，我没能理解您的输入。请按照示例格式重新输入。",
             "invalid_numbers": "随机数字需要是3个1-9之间的数字，例如：7、3、5",
-            "invalid_date": "日期格式不正确，请使用类似"1990年5月15日"的格式",
+            "invalid_date": "日期格式不正确，请使用类似'1990年5月15日'的格式",
             "missing_required": "还缺少一些必要信息，请查看上方的清单补充",
             "api_error": "系统遇到了一点问题，请稍后重试",
         }
