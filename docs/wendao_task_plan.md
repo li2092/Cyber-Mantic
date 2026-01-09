@@ -43,8 +43,10 @@
 
 | 问题 | 严重程度 | 状态 |
 |------|---------|------|
-| NLP解析Prompt仍为硬编码 | P2 | ❌ 待修复 |
+| NLP解析Prompt仍为硬编码 | P2 | ✅ 已完成（使用load_prompt） |
 | 理论选择数量硬编码 | P2 | ❌ 待修复 |
+| FlowGuard进度显示位置 | P2 | ✅ 已修复（移到右侧面板最顶端） |
+| 用户信息编辑 | P2 | ✅ 已完成（对话指令方案B） |
 
 ### 已修复的问题 (2026-01-08)
 
@@ -218,11 +220,23 @@ prompts/conversation/
      - `stage2_complete.md` → 追问"出生信息+性别+MBTI"
      - 新增 `stage3_collect_complete.md`
 
+8. **FlowGuard进度显示位置 (2026-01-09)**
+   - 问题：进度条在右侧面板底部显示
+   - 修复：调整布局顺序，FlowGuard信息收集进度移到最顶端
+
+9. **用户信息编辑功能 (2026-01-09)**
+   - 方案：对话指令（方案B）
+   - 实现：
+     - FlowGuard新增 `detect_modification_intent()` 检测修改意图
+     - FlowGuard新增 `process_modification()` 处理修改请求
+     - conversation_service 集成修改检测
+   - 用法：用户输入"修改出生日期为1990年"即可更新
+
 ### 待解决
 
 1. **回溯校验三个问题未显示**
    - 后端有DynamicVerification.generate_verification_questions()
-   - 前端只显示一句话提示
+   - 前端只显示一句话提示（已调整prompt让AI生成）
 
 ---
 

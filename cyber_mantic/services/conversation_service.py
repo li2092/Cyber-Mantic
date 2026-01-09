@@ -173,6 +173,15 @@ class ConversationService:
         self._sync_flow_guard_stage(stage)
 
         try:
+            # V2: 检测用户是否想修改已收集的信息
+            if self.flow_guard.detect_modification_intent(user_message):
+                mod_result = await self.flow_guard.process_modification(user_message, self.context)
+                if mod_result:
+                    self.logger.info(f"用户修改信息: {mod_result['modified']}")
+                    response = mod_result["message"] + "\n\n请继续对话，或告诉我您还需要修改什么。"
+                    self._add_message("assistant", response)
+                    return response
+
             # V2: 新的阶段路由逻辑
             # INIT 阶段也当作破冰阶段处理（用户可能在欢迎消息之前就发送了消息）
             if stage in (ConversationStage.INIT, ConversationStage.STAGE1_ICEBREAK):

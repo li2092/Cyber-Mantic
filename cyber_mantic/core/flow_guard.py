@@ -1015,6 +1015,178 @@ class FlowGuard:
 
         return None
 
+    # ==================== 用户信息修改（方案B：对话指令） ====================
+
+    # 修改关键词映射
+    MODIFY_KEYWORDS = ["修改", "更改", "改成", "改为", "纠正", "更正", "其实是", "应该是", "写错了"]
+
+    # 字段关键词映射
+    FIELD_KEYWORDS = {
+        "birth_year": ["出生年", "年份", "生于", "出生在"],
+        "birth_month": ["月份", "生日", "月"],
+        "birth_day": ["日期", "日", "号"],
+        "birth_hour": ["时辰", "时间", "点", "几点"],
+        "gender": ["性别", "男", "女"],
+        "mbti_type": ["mbti", "性格类型", "人格"],
+        "question_category": ["类别", "咨询", "问题类型"],
+        "character": ["汉字", "测字", "字"],
+    }
+
+    def detect_modification_intent(self, user_message: str) -> bool:
+        """
+        检测用户是否想修改已收集的信息
+
+        Returns:
+            True 如果用户想修改信息
+        """
+        text = user_message.lower()
+        return any(kw in text for kw in self.MODIFY_KEYWORDS)
+
+    async def process_modification(
+        self,
+        user_message: str,
+        context: Any
+    ) -> Optional[Dict[str, Any]]:
+        """
+        处理用户的修改请求
+
+        Args:
+            user_message: 用户消息
+            context: ConversationContext 对象
+
+        Returns:
+            修改结果字典，包含修改的字段和值；如果无法解析则返回None
+        """
+        if not self.detect_modification_intent(user_message):
+            return None
+
+        modifications = {}
+
+        # 尝试用AI解析修改意图
+        if self.ai_validation_enabled and self.api_manager:
+            try:
+                ai_mods = await self._ai_parse_modification(user_message)
+                if ai_mods:
+                    modifications.update(ai_mods)
+            except Exception as e:
+                self.logger.warning(f"AI解析修改意图失败: {e}")
+
+        # 代码后备解析
+        if not modifications:
+            modifications = self._code_parse_modification(user_message)
+
+        if modifications:
+            # 更新 context
+            for field, value in modifications.items():
+                if hasattr(context, field):
+                    old_value = getattr(context, field)
+                    setattr(context, field, value)
+                    self.logger.info(f"[FlowGuard] 修改 {field}: {old_value} -> {value}")
+
+                    # 同步更新 collected_data
+                    self.collected_data[field] = value
+
+                # 特殊处理 birth_info
+                if field.startswith("birth_") and hasattr(context, "birth_info"):
+                    if context.birth_info is None:
+                        context.birth_info = {}
+                    field_name = field.replace("birth_", "")
+                    context.birth_info[field_name] = value
+
+            return {"modified": modifications, "message": self._format_modification_message(modifications)}
+
+        return None
+
+    async def _ai_parse_modification(self, user_message: str) -> Optional[Dict[str, Any]]:
+        """使用AI解析修改意图"""
+        prompt = f"""用户想修改之前提供的信息。请解析用户想修改什么字段以及新值。
+
+用户消息："{user_message}"
+
+可修改的字段：
+- birth_year: 出生年份（整数，如1990）
+- birth_month: 出生月份（整数1-12）
+- birth_day: 出生日期（整数1-31）
+- birth_hour: 出生时辰（整数0-23，-1表示不记得）
+- gender: 性别（"男"或"女"）
+- mbti_type: MBTI类型（如"INTJ"）
+- question_category: 咨询类别（事业/感情/财运/健康/学业/决策）
+- character: 测字用的汉字（单个汉字）
+
+请返回JSON格式，只包含用户想修改的字段：
+{{"field_name": "new_value", ...}}
+
+如果无法解析，返回空对象 {{}}
+"""
+        try:
+            response = await self.api_manager.call_api(
+                task_type=TASK_TYPE_INPUT_ENHANCE,
+                prompt=prompt,
+                enable_dual_verification=False
+            )
+
+            # 提取JSON
+            json_match = re.search(r'\{[^}]+\}', response)
+            if json_match:
+                return json.loads(json_match.group())
+        except Exception as e:
+            self.logger.error(f"AI解析修改失败: {e}")
+
+        return None
+
+    def _code_parse_modification(self, user_message: str) -> Dict[str, Any]:
+        """代码后备解析修改意图"""
+        modifications = {}
+        text = user_message
+
+        # 尝试识别要修改的字段和新值
+        for field, keywords in self.FIELD_KEYWORDS.items():
+            if any(kw in text for kw in keywords):
+                # 根据字段类型提取新值
+                if field == "birth_year":
+                    value = self.validate_year(text)
+                elif field == "birth_month":
+                    value = self.validate_month(text)
+                elif field == "birth_day":
+                    value = self.validate_day(text)
+                elif field == "birth_hour":
+                    value = self.validate_hour(text)
+                elif field == "gender":
+                    value = self.validate_gender(text)
+                elif field == "mbti_type":
+                    value = self.validate_mbti(text)
+                elif field == "question_category":
+                    value = self.validate_category(text)
+                elif field == "character":
+                    value = self.validate_character(text)
+                else:
+                    value = None
+
+                if value is not None:
+                    modifications[field] = value
+
+        return modifications
+
+    def _format_modification_message(self, modifications: Dict[str, Any]) -> str:
+        """格式化修改确认消息"""
+        field_names = {
+            "birth_year": "出生年份",
+            "birth_month": "出生月份",
+            "birth_day": "出生日期",
+            "birth_hour": "出生时辰",
+            "gender": "性别",
+            "mbti_type": "MBTI类型",
+            "question_category": "咨询类别",
+            "character": "测字汉字",
+        }
+
+        lines = ["✅ 已更新您的信息："]
+        for field, value in modifications.items():
+            name = field_names.get(field, field)
+            lines.append(f"- {name}: {value}")
+
+        return "\n".join(lines)
+
     # ==================== 辅助方法 ====================
 
     def _get_stage_display_name(self, stage: str) -> str:

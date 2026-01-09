@@ -438,24 +438,7 @@ class AIConversationTab(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
-        # ===== V2: 标题 =====
-        title_label = QLabel("📊 理论分析进度")
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        layout.addWidget(title_label)
-
-        # ===== V2: 快速结论卡片面板（顶部，替代原小六壬卡片） =====
-        # V2: 使用当前主题
-        self.quick_result_panel = QuickResultPanel(theme=self.current_theme)
-        self.quick_result_panel.theory_clicked.connect(self._show_theory_detail)
-        layout.addWidget(self.quick_result_panel)
-
-        # V2: 兼容性保留（避免其他代码引用报错）
-        self.theory_buttons = {}
-
-        # ===== V2: FlowGuard信息收集进度 =====
+        # ===== V2: FlowGuard信息收集进度（最顶端显示） =====
         flowguard_group = QGroupBox("📋 信息收集进度")
         flowguard_layout = QVBoxLayout()
         self.flowguard_text = QTextBrowser()
@@ -469,6 +452,23 @@ class AIConversationTab(QWidget):
         flowguard_layout.addWidget(self.flowguard_text)
         flowguard_group.setLayout(flowguard_layout)
         layout.addWidget(flowguard_group)
+
+        # ===== V2: 标题 =====
+        title_label = QLabel("📊 理论分析进度")
+        title_font = QFont()
+        title_font.setPointSize(12)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        layout.addWidget(title_label)
+
+        # ===== V2: 快速结论卡片面板 =====
+        # V2: 使用当前主题
+        self.quick_result_panel = QuickResultPanel(theme=self.current_theme)
+        self.quick_result_panel.theory_clicked.connect(self._show_theory_detail)
+        layout.addWidget(self.quick_result_panel)
+
+        # V2: 兼容性保留（避免其他代码引用报错）
+        self.theory_buttons = {}
 
         # ===== V2: 回溯验证组件容器（初始隐藏） =====
         self.verification_group = QGroupBox("🔍 回溯验证")
