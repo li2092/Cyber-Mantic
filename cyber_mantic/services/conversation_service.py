@@ -45,6 +45,9 @@ from utils.usage_stats_manager import get_usage_stats_manager
 # V2: FlowGuard流程监管
 from core.flow_guard import get_flow_guard, InputStatus
 
+# V2: 提示词模板加载器
+from prompts.loader import load_prompt, prompt_exists
+
 
 # 导出公共接口（向后兼容）
 __all__ = [
@@ -127,36 +130,12 @@ class ConversationService:
         self.context.stage = ConversationStage.STAGE1_ICEBREAK
         self._init_handlers()
 
-        welcome_message = """👋 欢迎使用赛博玄数 - AI智能对话模式
-
-## 🎯 智能交互流程
-
-本模式采用**渐进式5阶段**深度对话，为您提供专业命理分析：
-
-1️⃣ **破冰阶段**：快速了解您的需求，提供初步判断
-2️⃣ **信息收集**：详细收集出生信息，展示可用理论
-3️⃣ **深度分析**：针对性补充信息，提升准确度
-4️⃣ **结果验证**：回顾过去事件，确认分析方向
-5️⃣ **完整报告**：生成详细报告，持续答疑解惑
-
----
-
-## 📝 请告诉我您想咨询什么
-
-### 请提供以下信息：
-
-1. **咨询事项**：您想咨询什么？（事业/感情/财运/健康/学业/决策/其他）
-2. **问题描述**：简单描述您的具体问题
-3. **随机数字**：请提供3个1-9的随机数字（用于小六壬起卦）
-
-**💡 示例**：
-```
-我想咨询事业，最近在考虑是否要跳槽
-数字是：7、3、5
-```
-
-请输入您的咨询内容：
-"""
+        # V2: 使用模板加载欢迎消息
+        try:
+            welcome_message = load_prompt("conversation/welcome.md")
+        except FileNotFoundError:
+            self.logger.warning("欢迎消息模板不存在，使用默认消息")
+            welcome_message = "👋 欢迎使用赛博玄数！请告诉我您想咨询什么问题，并提供3个随机数字。"
         self._add_message("assistant", welcome_message)
         return welcome_message
 
@@ -271,33 +250,16 @@ class ConversationService:
         if progress_callback:
             progress_callback("阶段1", "破冰阶段完成", 100)
 
-        return f"""✅ **信息已收集**
-
-📋 咨询事项：{self.context.question_category}
-🔢 随机数字：{', '.join(map(str, self.context.random_numbers))}
-
----
-
-## 🔮 小六壬快速判断
-
-{interpretation}
-
----
-
-## 📝 接下来，请告诉我您的出生信息
-
-### 必需信息：
-1. **出生年月日**（如：1990年5月20日）
-2. **出生时辰**（如：下午3点，或"不记得了"）
-
-### 可选信息：
-3. 性别（男/女）
-4. MBTI类型（如：INTJ）
-
-**💡 示例**：`我是1990年5月20日下午3点出生的，男，INTJ`
-
-请输入您的出生信息：
-"""
+        # V2: 使用模板加载阶段1完成消息
+        try:
+            return load_prompt("conversation/stage1_complete.md", {
+                "category": self.context.question_category,
+                "numbers": ', '.join(map(str, self.context.random_numbers)),
+                "interpretation": interpretation
+            })
+        except FileNotFoundError:
+            # 兜底：返回简单消息
+            return f"✅ 已收集：{self.context.question_category}，数字：{self.context.random_numbers}\n\n{interpretation}\n\n请提供出生信息。"
 
     async def _handle_stage2(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段2：基础信息收集"""
@@ -330,42 +292,34 @@ class ConversationService:
 
         time_status = {"certain": "✅ 确定", "uncertain": "⚠️ 不确定", "unknown": "❓ 未知"}.get(self.context.time_certainty, "未知")
 
-        response = f"""✅ **出生信息已收集**
+        # V2: 使用模板加载阶段2完成消息
+        try:
+            response = load_prompt("conversation/stage2_complete.md", {
+                "birth_str": birth_str,
+                "time_status": time_status,
+                "gender": self.context.gender or '未提供',
+                "mbti": self.context.mbti_type or '未提供',
+                "theories_display": theories_display
+            })
+        except FileNotFoundError:
+            response = f"✅ 出生信息：{birth_str}，时辰：{time_status}\n\n理论：{theories_display}"
 
-📅 出生时间：{birth_str}
-⏰ 时辰确定性：{time_status}
-👤 性别：{self.context.gender or '未提供'}
-🧠 MBTI：{self.context.mbti_type or '未提供'}
-
----
-
-## 📊 可用分析理论
-
-{theories_display}
-
----
-"""
         if need_supplement:
-            response += """
-## 📝 需要补充信息
-
-为提高分析准确度，请回答：
-1. **兄弟姐妹排行？**（老大/老二/独生）
-2. **脸型特征？**（圆脸/方脸/瓜子脸）
-3. **通常几点入睡？**
-
-请回答以上问题：
-"""
+            # V2: 使用模板加载补充信息提示
+            try:
+                response += "\n" + load_prompt("conversation/supplement_prompt.md")
+            except FileNotFoundError:
+                response += "\n\n请补充：兄弟姐妹排行？脸型？几点入睡？"
         else:
-            response += f"""
-## ⏪ 回溯验证
+            # V2: 使用模板加载验证提示
+            try:
+                response += "\n" + load_prompt("conversation/stage3_complete.md", {
+                    "hour_info": "",
+                    "category": self.context.question_category
+                })
+            except FileNotFoundError:
+                response += f"\n\n请简单回答：过去3年在{self.context.question_category}领域有无变化？"
 
-请简单回答：过去3年中，在{self.context.question_category}领域是否有重大变化？
-
-例如：2023年换了工作 / 最近几年比较平稳
-
-请简单描述：
-"""
         return response
 
     async def _handle_stage3(self, user_message: str, progress_callback, theory_callback=None) -> str:
@@ -392,16 +346,14 @@ class ConversationService:
             hour_name = hour_names.get(self.context.inferred_hour, "未知")
             hour_info = f"\n\n🔮 **推断时辰**：{hour_name}时（{self.context.inferred_hour}点）"
 
-        return f"""✅ **补充信息已收集**{hour_info}
-
----
-
-## ⏪ 回溯验证
-
-请简单回答：过去3年中，在{self.context.question_category}领域是否有重大变化？
-
-请简单描述：
-"""
+        # V2: 使用模板加载阶段3完成消息
+        try:
+            return load_prompt("conversation/stage3_complete.md", {
+                "hour_info": hour_info,
+                "category": self.context.question_category
+            })
+        except FileNotFoundError:
+            return f"✅ 补充信息已收集{hour_info}\n\n请简单回答：过去3年在{self.context.question_category}领域有无变化？"
 
     async def _handle_stage4(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段4：结果验证"""
