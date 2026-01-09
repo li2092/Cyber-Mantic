@@ -482,7 +482,22 @@ class AIConversationTab(QWidget):
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
 
-        # 当前阶段
+        # ===== V2: FlowGuard信息收集进度 =====
+        flowguard_group = QGroupBox("📋 信息收集进度")
+        flowguard_layout = QVBoxLayout()
+        self.flowguard_text = QTextBrowser()
+        self.flowguard_text.setReadOnly(True)
+        self.flowguard_text.setFrameStyle(QFrame.Shape.NoFrame)
+        self.flowguard_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.flowguard_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.flowguard_text.setMaximumHeight(180)
+        self.flowguard_text.setMarkdown("_等待开始对话..._")
+        self.flowguard_text.setStyleSheet("font-size: 9pt;")
+        flowguard_layout.addWidget(self.flowguard_text)
+        flowguard_group.setLayout(flowguard_layout)
+        layout.addWidget(flowguard_group)
+
+        # 当前阶段（简化为一行状态）
         stage_group = QGroupBox("当前阶段")
         stage_layout = QVBoxLayout()
         self.stage_label = QLabel("等待用户输入...")
@@ -529,6 +544,9 @@ class AIConversationTab(QWidget):
         # V2: 重置快速结论面板
         if hasattr(self, 'quick_result_panel'):
             self.quick_result_panel.reset_all()
+        # V2: 重置FlowGuard进度显示
+        if hasattr(self, 'flowguard_text'):
+            self.flowguard_text.setMarkdown("_等待开始对话..._")
 
         # 启动对话 - 使用is_start=True触发start_conversation
         self.worker = ConversationWorker(
@@ -850,6 +868,9 @@ class AIConversationTab(QWidget):
         status_md = "\n\n".join(status_parts) if status_parts else "（等待开始）"
         self.status_text.setMarkdown(status_md)
 
+        # V2: 更新FlowGuard信息收集进度
+        self._update_flowguard_progress()
+
     def _on_save_clicked(self):
         """保存对话"""
         conversation_data = self.conversation_service.save_conversation()
@@ -998,6 +1019,23 @@ class AIConversationTab(QWidget):
             self.xiaoliu_text.setMarkdown(xiaoliu_md)
         else:
             self.xiaoliu_text.setMarkdown("_等待起卦..._")
+
+    def _update_flowguard_progress(self):
+        """V2: 更新FlowGuard信息收集进度"""
+        try:
+            if hasattr(self.conversation_service, 'flow_guard'):
+                flow_guard = self.conversation_service.flow_guard
+                progress_md = flow_guard.generate_progress_display()
+                # 简化显示，去除标题（UI已有GroupBox标题）
+                lines = progress_md.split('\n')
+                # 跳过markdown标题行（## 开头）
+                filtered_lines = [line for line in lines if not line.startswith('## ')]
+                self.flowguard_text.setMarkdown('\n'.join(filtered_lines))
+            else:
+                self.flowguard_text.setMarkdown("_FlowGuard未初始化_")
+        except Exception as e:
+            self.logger.warning(f"FlowGuard进度更新失败: {e}")
+            self.flowguard_text.setMarkdown("_进度更新失败_")
 
     def _stop_current_worker(self):
         """停止当前正在运行的工作线程"""
