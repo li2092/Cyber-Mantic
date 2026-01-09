@@ -9,16 +9,24 @@
 """
 from typing import List, Dict, Any, Tuple, Optional
 from models import TheoryAnalysisResult, ConflictInfo
+from core.arbitration_system import ArbitrationSystem, ArbitrationConflictInfo, ArbitrationStatus
+from .constants import (
+    JUDGMENT_THRESHOLD_MINOR,
+    JUDGMENT_THRESHOLD_SIGNIFICANT,
+    CONFIDENCE_WEIGHT_FACTOR
+)
+from utils.logger import get_logger
 import math
 
 
 class ConflictResolver:
-    """冲突解决器"""
+    """冲突解决器
 
-    # 冲突级别阈值
-    JUDGMENT_THRESHOLD_MINOR = 0.2      # 微小差异阈值
-    JUDGMENT_THRESHOLD_SIGNIFICANT = 0.4  # 显著差异阈值
-    CONFIDENCE_WEIGHT_FACTOR = 1.5      # 置信度权重因子
+    使用全局常量定义冲突阈值（来自core.constants）：
+    - JUDGMENT_THRESHOLD_MINOR = 0.2 (20%差异)
+    - JUDGMENT_THRESHOLD_SIGNIFICANT = 0.4 (40%差异)
+    - CONFIDENCE_WEIGHT_FACTOR = 1.5 (置信度权重)
+    """
 
     # 吉凶映射（用于数值化）
     JUDGMENT_VALUES = {
@@ -29,8 +37,15 @@ class ConflictResolver:
         "大凶": 0.0
     }
 
-    def __init__(self):
-        pass
+    def __init__(self, arbitration_system: ArbitrationSystem = None):
+        """
+        初始化冲突解决器
+        
+        Args:
+            arbitration_system: 仲裁系统（可选）
+        """
+        self.arbitration_system = arbitration_system
+        self.logger = get_logger(__name__)
 
     def detect_and_resolve_conflicts(
         self,
@@ -111,11 +126,11 @@ class ConflictResolver:
         diff = abs(v1 - v2)
 
         # 判断冲突级别
-        if diff < self.JUDGMENT_THRESHOLD_MINOR:
+        if diff < JUDGMENT_THRESHOLD_MINOR:
             # Level 1: 完全一致或微小差异
             return None  # 不记录为冲突
 
-        elif diff < self.JUDGMENT_THRESHOLD_SIGNIFICANT:
+        elif diff < JUDGMENT_THRESHOLD_SIGNIFICANT:
             # Level 2: 微小差异
             return {
                 "level": 2,
@@ -254,8 +269,11 @@ class ConflictResolver:
 
         # 确定总体策略
         if level4_count > 0:
-            resolution["总体策略"] = "深度分析调和"
+            resolution["总体策略"] = "需要仲裁"
             resolution["可信度评估"] = 0.5  # 严重冲突降低可信度
+            resolution["需要仲裁"] = True
+            resolution["仲裁冲突"] = categorized_conflicts.get(4, [])
+            self.logger.info(f"检测到{level4_count}个严重冲突，建议启动仲裁")
         elif level3_count > 0:
             resolution["总体策略"] = "加权平均调和"
             resolution["可信度评估"] = 0.7

@@ -24,8 +24,8 @@ class ArbitrationStatus(Enum):
 
 
 @dataclass
-class ConflictInfo:
-    """冲突信息"""
+class ArbitrationConflictInfo:
+    """仲裁系统的冲突信息（区别于models.ConflictInfo）"""
     theory_a: str
     theory_b: str
     judgment_a: str  # 吉/凶/平
@@ -96,7 +96,7 @@ class ArbitrationSystem:
 
     def request_arbitration(
         self,
-        conflict: ConflictInfo,
+        conflict: ArbitrationConflictInfo,
         question_type: str,
         used_theories: List[str]
     ) -> Optional[str]:
@@ -133,7 +133,7 @@ class ArbitrationSystem:
 
     async def execute_arbitration(
         self,
-        conflict: ConflictInfo,
+        conflict: ArbitrationConflictInfo,
         arbitration_theory: str,
         user_input: Dict[str, Any],
         arbitration_result: Dict[str, Any]
@@ -176,7 +176,7 @@ class ArbitrationSystem:
 
     async def _ai_arbitration(
         self,
-        conflict: ConflictInfo,
+        conflict: ArbitrationConflictInfo,
         arbitration_theory: str,
         user_input: Dict[str, Any],
         arbitration_result: Dict[str, Any]
@@ -255,7 +255,7 @@ class ArbitrationSystem:
 
     def _rule_based_arbitration(
         self,
-        conflict: ConflictInfo,
+        conflict: ArbitrationConflictInfo,
         arbitration_theory: str,
         arbitration_result: Dict[str, Any]
     ) -> ArbitrationResult:
@@ -327,7 +327,7 @@ class ArbitrationSystem:
 
     def should_arbitrate(
         self,
-        conflict: ConflictInfo,
+        conflict: ArbitrationConflictInfo,
         threshold: str = "中"
     ) -> bool:
         """
@@ -376,7 +376,7 @@ def create_conflict_info(
     theory_b: str,
     result_a: Dict[str, Any],
     result_b: Dict[str, Any]
-) -> ConflictInfo:
+) -> ArbitrationConflictInfo:
     """
     从理论结果创建冲突信息
 
@@ -416,7 +416,7 @@ def create_conflict_info(
     else:
         conflict_level = "中"
 
-    return ConflictInfo(
+    return ArbitrationConflictInfo(
         theory_a=theory_a,
         theory_b=theory_b,
         judgment_a=judgment_a,

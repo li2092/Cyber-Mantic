@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile:*)",
+      "Bash(python:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(timeout 8 python:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(timeout 3 python:*)"
+    ]
+  }
+}

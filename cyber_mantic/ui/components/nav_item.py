@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QSize
 from PyQt6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor
 
+from ..design_system import spacing, font_size, border_radius, tokens
+
 
 class NavItem(QWidget):
     """导航项组件"""
@@ -35,27 +37,27 @@ class NavItem(QWidget):
         self._apply_style()
 
     def _setup_ui(self):
-        """设置UI"""
-        self.setFixedHeight(48)
+        """设置UI - 使用设计系统规范"""
+        self.setFixedHeight(tokens.sidebar["item_height"])
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(12, 0, 12, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(tokens.sidebar["item_padding"], 0, tokens.sidebar["item_padding"], 0)
+        layout.setSpacing(spacing.md)
 
-        # 图标
+        # 图标 - 使用专业Unicode图标
         self.icon_label = QLabel(self.icon)
-        self.icon_label.setFixedSize(24, 24)
+        self.icon_label.setFixedSize(tokens.sidebar["item_icon_size"], tokens.sidebar["item_icon_size"])
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_font = QFont()
-        icon_font.setPointSize(14)
+        icon_font.setPointSize(font_size.md)
         self.icon_label.setFont(icon_font)
         layout.addWidget(self.icon_label)
 
         # 文字
         self.text_label = QLabel(self.name)
         text_font = QFont()
-        text_font.setPointSize(13)
+        text_font.setPointSize(tokens.sidebar["item_font_size"])
         text_font.setWeight(QFont.Weight.Medium)
         self.text_label.setFont(text_font)
         self.text_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -97,9 +99,9 @@ class NavItem(QWidget):
         self.setStyleSheet(f"""
             NavItem {{
                 background-color: {bg};
-                border-radius: 8px;
+                border-radius: {tokens.sidebar["item_radius"]}px;
                 border-left: {border_left};
-                margin: 2px 8px;
+                margin: {spacing.xs}px {spacing.sm}px;
             }}
             NavItem:hover {{
                 background-color: {bg_hover};

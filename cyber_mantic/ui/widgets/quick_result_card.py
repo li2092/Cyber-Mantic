@@ -22,6 +22,8 @@ from PyQt6.QtGui import QFont
 from enum import Enum
 from typing import Optional
 
+from ..design_system import spacing, font_size, border_radius, tokens
+
 
 class CardStatus(Enum):
     """卡片状态枚举（V2五级吉凶系统）"""
@@ -33,6 +35,7 @@ class CardStatus(Enum):
     COMPLETED_PING = "ping"               # 平 (0.4 <= judgment_level < 0.6)
     COMPLETED_XIAOXIONG = "xiaoxiong"     # 小凶 (0.2 <= judgment_level < 0.4)
     COMPLETED_DAXIONG = "daxiong"         # 大凶 (judgment_level < 0.2)
+    ARBITRATING = "arbitrating"           # 仲裁中
     ERROR = "error"                       # 错误
 
     # 向后兼容别名
@@ -93,6 +96,12 @@ class QuickResultCard(QFrame):
             "label": "大凶",
             "text": "#9CA3AF"
         },
+        CardStatus.ARBITRATING: {             # 仲裁中 - 紫色
+            "border": "#A855F7",
+            "bg": "#581C87",
+            "label": "⚖️",
+            "text": "#E9D5FF"
+        },
         CardStatus.ERROR: {
             "border": "#6B7280",
             "bg": "#1F2937",
@@ -146,6 +155,12 @@ class QuickResultCard(QFrame):
             "label": "大凶",
             "text": "#1F2937"
         },
+        CardStatus.ARBITRATING: {             # 仲裁中 - 紫色
+            "border": "#A855F7",
+            "bg": "#F3E8FF",
+            "label": "⚖️",
+            "text": "#E9D5FF"
+        },
         CardStatus.ERROR: {
             "border": "#9CA3AF",
             "bg": "#F3F4F6",
@@ -177,21 +192,21 @@ class QuickResultCard(QFrame):
         self._apply_style()
 
     def _setup_ui(self):
-        """设置UI"""
+        """设置UI - 使用设计系统规范"""
         self.setObjectName("quickResultCard")
-        self.setMinimumHeight(60)
-        self.setMaximumHeight(80)
+        self.setMinimumHeight(70)  # 增加高度以适应更大字体
+        self.setMaximumHeight(90)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
+        layout.setSpacing(spacing.sm)
 
         # 状态图标
         self.icon_label = QLabel("⬚")
-        self.icon_label.setFixedWidth(24)
+        self.icon_label.setFixedWidth(28)  # 稍微增大以适应更大字体
         icon_font = QFont()
-        icon_font.setPointSize(14)
+        icon_font.setPointSize(font_size.md)
         self.icon_label.setFont(icon_font)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.icon_label)
@@ -199,12 +214,12 @@ class QuickResultCard(QFrame):
         # 内容区域
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(2)
+        content_layout.setSpacing(spacing.xs)
 
         # 理论名称
         self.name_label = QLabel(self.theory_name)
         name_font = QFont()
-        name_font.setPointSize(11)
+        name_font.setPointSize(font_size.base)  # 使用设计系统字号
         name_font.setWeight(QFont.Weight.Medium)
         self.name_label.setFont(name_font)
         content_layout.addWidget(self.name_label)
@@ -212,7 +227,7 @@ class QuickResultCard(QFrame):
         # 摘要文本
         self.summary_label = QLabel("等待分析...")
         summary_font = QFont()
-        summary_font.setPointSize(9)
+        summary_font.setPointSize(font_size.sm)  # 使用设计系统字号
         self.summary_label.setFont(summary_font)
         self.summary_label.setWordWrap(True)
         content_layout.addWidget(self.summary_label)
@@ -231,7 +246,7 @@ class QuickResultCard(QFrame):
             QFrame#quickResultCard {{
                 background-color: {style['bg']};
                 border: 2px solid {style['border']};
-                border-radius: 8px;
+                border-radius: {tokens.card["radius"]}px;
             }}
             QFrame#quickResultCard:hover {{
                 border-color: {style['border']};
@@ -275,6 +290,14 @@ class QuickResultCard(QFrame):
         self.summary_label.setText("正在分析...")
         self._apply_style()
         self._start_animation()
+
+    def set_arbitrating(self):
+        """设置为仲裁中状态"""
+        self.status = CardStatus.ARBITRATING
+        self.summary_label.setText("仲裁中，等待第三方理论裁决...")
+        self._apply_style()
+        self._start_animation()
+
 
     def set_completed(self, summary: str, judgment: str, judgment_level: float = 0.5):
         """
@@ -456,6 +479,12 @@ class QuickResultPanel(QFrame):
         """设置理论为进行中状态"""
         if theory_name in self.cards:
             self.cards[theory_name].set_running()
+
+    def set_theory_arbitrating(self, theory_name: str):
+        """设置理论为仲裁中状态"""
+        if theory_name in self.cards:
+            self.cards[theory_name].set_arbitrating()
+
 
     def set_theory_completed(self, theory_name: str, summary: str, judgment: str):
         """设置理论为完成状态"""

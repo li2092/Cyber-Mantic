@@ -24,6 +24,9 @@ from .markdown_webview import (
     MarkdownWebView, MarkdownTypewriter, is_webengine_available, WEBENGINE_AVAILABLE
 )
 
+# 导入设计系统
+from ..design_system import spacing, font_size, border_radius, tokens
+
 
 def escape_html(text: str) -> str:
     """转义HTML特殊字符"""
@@ -251,10 +254,12 @@ class TypewriterAnimation:
 
     核心优化：打字过程中使用纯文本显示，避免Markdown重新渲染导致的跳动
     只在动画结束后渲染完整Markdown
+
+    V2优化：类Claude效果 - 更快速、更流畅
     """
 
     def __init__(self, text_browser, content: str, is_markdown: bool = True,
-                 char_delay: int = 12, newline_delay: int = 80, chunk_size: int = 5,
+                 char_delay: int = 8, newline_delay: int = 40, chunk_size: int = 3,
                  theme: str = "dark"):
         """
         初始化打字机动画
@@ -263,9 +268,9 @@ class TypewriterAnimation:
             text_browser: 要显示内容的TextBrowser (AutoResizingTextBrowser)
             content: 要显示的完整内容
             is_markdown: 是否为Markdown格式（最终渲染时使用）
-            char_delay: 每组字符的延迟（毫秒）
-            newline_delay: 换行时的额外延迟（毫秒）
-            chunk_size: 每次显示的字符数（减少渲染频率）
+            char_delay: 每组字符的延迟（毫秒）- V2优化：8ms更流畅
+            newline_delay: 换行时的额外延迟（毫秒）- V2优化：40ms更自然
+            chunk_size: 每次显示的字符数 - V2优化：3个字符更平滑
             theme: 主题 ("dark" 或 "light")
         """
         self.text_browser = text_browser
@@ -387,11 +392,12 @@ class ChatBubble(QFrame):
     _logo_pixmap = None
     _logo_path = None
 
-    def __init__(self, message: ChatMessage, font_size: int = 11, animated: bool = False,
+    def __init__(self, message: ChatMessage, bubble_font_size: int = None, animated: bool = False,
                  theme: str = "light", parent=None):
         super().__init__(parent)
         self.message = message
-        self.font_size = font_size
+        # 使用设计系统字号，如果未指定则使用base
+        self.font_size = bubble_font_size if bubble_font_size is not None else font_size.base
         self.animated = animated
         self.theme = theme
         self.content_browser = None
@@ -436,20 +442,20 @@ class ChatBubble(QFrame):
         ai_border_color = "#E2E8F0" if not is_dark else "#3D3D4A"
         ai_name_color = "#64748B" if not is_dark else "#94A3B8"
 
-        # 主布局
+        # 主布局 - 使用设计系统间距
         main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(16, 4, 16, 4)  # 减少上下边距
+        main_layout.setContentsMargins(spacing.md, spacing.xs, spacing.md, spacing.xs)
         main_layout.setSpacing(0)
 
         if self.message.role == MessageRole.USER:
             # ========== 用户消息：右侧紫色气泡，不显示头像 ==========
             main_layout.addStretch()  # 左侧弹性空间，推到右边
 
-            # 气泡容器
+            # 气泡容器 - 使用设计系统间距和圆角
             bubble_widget = QFrame()
             bubble_widget.setObjectName("userBubble")
             bubble_layout = QVBoxLayout(bubble_widget)
-            bubble_layout.setContentsMargins(12, 8, 12, 8)  # 减少内边距
+            bubble_layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
             bubble_layout.setSpacing(0)
 
             # 消息内容
@@ -469,12 +475,12 @@ class ChatBubble(QFrame):
 
             bubble_layout.addWidget(self.content_browser)
 
-            # 设置气泡样式 - 紫色圆角
+            # 设置气泡样式 - 紫色圆角，使用设计系统规范
             bubble_widget.setStyleSheet(f"""
                 QFrame#userBubble {{
                     background-color: {user_bubble_bg};
-                    border-radius: 16px;
-                    border-top-right-radius: 4px;
+                    border-radius: {tokens.message["user"]["radius"]}px;
+                    border-top-right-radius: {border_radius.sm}px;
                 }}
                 AutoResizingTextBrowser {{
                     background-color: transparent;
@@ -534,11 +540,11 @@ class ChatBubble(QFrame):
 
             ai_main_layout.addWidget(header_widget)
 
-            # 气泡容器
+            # 气泡容器 - 使用设计系统间距
             bubble_widget = QFrame()
             bubble_widget.setObjectName("aiBubble")
             bubble_layout = QVBoxLayout(bubble_widget)
-            bubble_layout.setContentsMargins(12, 8, 12, 8)
+            bubble_layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
             bubble_layout.setSpacing(0)
 
             # 消息内容 - 优先使用WebEngine获得更好的渲染效果
@@ -546,13 +552,13 @@ class ChatBubble(QFrame):
                 self.content_webview = MarkdownWebView(theme=self.theme)
                 self.content_browser = None  # WebEngine模式下不使用TextBrowser
 
-                # AI消息：Markdown渲染
+                # AI消息：Markdown渲染 - V2优化：类Claude参数
                 if self.animated and self.message.content:
                     self.web_typewriter = MarkdownTypewriter(
                         self.content_webview,
                         self.message.content,
-                        char_delay=15,
-                        chunk_size=5
+                        char_delay=8,   # 更快速
+                        chunk_size=3    # 更平滑
                     )
                     self.web_typewriter.start()
                 else:
@@ -571,14 +577,15 @@ class ChatBubble(QFrame):
                 self.content_browser.setFont(font)
                 self.content_browser.document().setDocumentMargin(0)
 
-                # AI消息：Markdown渲染
+                # AI消息：Markdown渲染 - V2优化：类Claude参数
                 if self.animated and self.message.content:
                     self.typewriter = TypewriterAnimation(
                         self.content_browser,
                         self.message.content,
                         is_markdown=True,
-                        char_delay=15,
-                        newline_delay=100,
+                        char_delay=8,     # 更快速
+                        newline_delay=40,  # 更自然
+                        chunk_size=3,     # 更平滑
                         theme=self.theme
                     )
                     self.typewriter.start()
@@ -589,13 +596,13 @@ class ChatBubble(QFrame):
 
                 bubble_layout.addWidget(self.content_browser)
 
-            # 设置气泡样式 - 白色/深色圆角
+            # 设置气泡样式 - 白色/深色圆角，使用设计系统规范
             bubble_widget.setStyleSheet(f"""
                 QFrame#aiBubble {{
                     background-color: {ai_bubble_bg};
                     border: 1px solid {ai_border_color};
-                    border-radius: 16px;
-                    border-top-left-radius: 4px;
+                    border-radius: {tokens.message["assistant"]["radius"]}px;
+                    border-top-left-radius: {border_radius.sm}px;
                 }}
                 AutoResizingTextBrowser {{
                     background-color: transparent;
@@ -651,7 +658,7 @@ class ChatWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.messages: List[ChatMessage] = []
-        self.font_size: int = 11  # 默认字体大小
+        self.font_size: int = font_size.base  # 使用设计系统的默认字体大小
         self.theme: str = "light"  # 当前主题
         self._setup_ui()
 
@@ -674,11 +681,11 @@ class ChatWidget(QWidget):
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setFrameStyle(QFrame.Shape.NoFrame)
 
-        # 消息容器
+        # 消息容器 - 使用设计系统间距
         self.messages_container = QWidget()
         self.messages_layout = QVBoxLayout()
-        self.messages_layout.setContentsMargins(16, 8, 16, 8)
-        self.messages_layout.setSpacing(4)  # 减小消息间距，让对话更紧凑
+        self.messages_layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
+        self.messages_layout.setSpacing(spacing.xs)  # 减小消息间距，让对话更紧凑
         self.messages_layout.addStretch()  # 底部伸展，保持消息从下往上堆叠
         self.messages_container.setLayout(self.messages_layout)
 

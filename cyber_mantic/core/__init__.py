@@ -21,7 +21,7 @@ from .arbitration_system import (
     ArbitrationSystem,
     ArbitrationResult,
     ArbitrationStatus,
-    ConflictInfo,
+    ArbitrationConflictInfo,
     create_conflict_info
 )
 from .shichen_handler import (
@@ -54,7 +54,7 @@ __all__ = [
     'ArbitrationSystem',
     'ArbitrationResult',
     'ArbitrationStatus',
-    'ConflictInfo',
+    'ArbitrationConflictInfo',
     'create_conflict_info',
     # 时辰处理
     'ShichenHandler',

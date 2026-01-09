@@ -120,32 +120,32 @@ class VerificationResult:
 class DynamicVerificationGenerator:
     """动态生成验证问题"""
 
-    # 问题类型模板
+    # 问题类型模板（三选项格式 - 备用方案）
     QUESTION_TEMPLATES = {
         "事业": [
-            "在过去3年内，您是否经历过工作变动（换工作、升职、降职等）？",
-            "您最近一次重要的事业决策是在哪一年？",
-            "在2020-2024年间，您的收入是否有明显增长？"
+            ("2023年下半年（7-12月），工作上是否经历过明显的挫折或不顺利？", "验证事业运势"),
+            ("2024年上半年（1-6月），是否有过跳槽、换岗位或工作内容调整的情况？", "验证事业变动"),
+            ("2022-2023年间，是否遇到过对工作有重要帮助的贵人（领导/同事/合作伙伴）？", "验证贵人运")
         ],
         "感情": [
-            "在过去3年内，您的感情状态是否发生过重大变化？",
-            "您是否在2020年后开始/结束一段重要的感情关系？",
-            "您目前的感情状态与3年前相比如何？"
+            ("2023年全年，感情关系是否出现过争吵、冷战或短暂分离？", "验证感情波折"),
+            ("2024年春季（3-5月），是否有过新的感情机会或桃花出现？", "验证桃花运"),
+            ("2022-2023年间，感情状态是否经历过从单身到恋爱、或从恋爱到分手的转变？", "验证感情变化")
         ],
         "财运": [
-            "在过去3年内，您是否有过重大投资或理财决策？",
-            "您的财务状况在2022年前后是否有明显变化？",
-            "您是否经历过意外的财务收入或损失？"
+            ("2023年，是否有过意外的财务支出或投资亏损？", "验证财运波折"),
+            ("2024年上半年，是否有过额外收入或意外之财（奖金/项目分红/理财收益）？", "验证财运机会"),
+            ("2022-2023年间，收入是否有明显增长（涨薪/换高薪工作/副业收入）？", "验证收入增长")
         ],
         "健康": [
-            "在过去3年内，您或家人是否有过健康问题？",
-            "您的身体状况与3年前相比如何？",
-            "您是否在最近几年养成了新的健康习惯？"
+            ("2023年，是否经历过身体不适、生病或体检指标异常？", "验证健康状况"),
+            ("2024年，是否开始了新的健康习惯（运动/饮食调整/作息改善）？", "验证健康意识"),
+            ("2022-2023年间，家人是否有过健康问题需要照顾？", "验证家人健康")
         ],
         "决策": [
-            "您最近一次重大人生决策是什么时候做出的？",
-            "这个决策的结果是否符合您当时的预期？",
-            "如果有机会，您会改变当时的决定吗？"
+            ("2023年，是否做过重要的人生决策（换工作/搬家/重大投资）？", "验证决策时机"),
+            ("您2023年做出的重要决策，事后来看是否符合预期？", "验证决策结果"),
+            ("2024年上半年，是否因为犹豫不决而错过某个机会？", "验证决策果断度")
         ]
     }
 
@@ -281,7 +281,7 @@ class DynamicVerificationGenerator:
         analysis_results: Dict[str, Any],
         question_count: int
     ) -> List[VerificationQuestion]:
-        """从模板生成验证问题（回退方案）"""
+        """从模板生成验证问题（回退方案）- 三选项格式"""
 
         question_type = user_info.get("question_type", "综合")
         questions = []
@@ -301,12 +301,12 @@ class DynamicVerificationGenerator:
         import random
         selected = random.sample(templates, min(question_count, len(templates)))
 
-        for idx, q_text in enumerate(selected):
+        for idx, (q_text, purpose_text) in enumerate(selected):
             q = VerificationQuestion(
                 question=q_text,
-                question_type="yes_no" if "是否" in q_text else "year" if "哪一年" in q_text else "event",
-                purpose=f"验证{question_type}相关分析",
-                expected_answers=[],
+                question_type="three_choice",  # 固定为三选项
+                purpose=purpose_text,
+                expected_answers=["符合", "部分符合"],  # 预期答案（用于验证准确性）
                 weight=1.0
             )
             questions.append(q)
@@ -319,7 +319,7 @@ class DynamicVerificationGenerator:
         answer: str
     ) -> bool:
         """
-        评估用户答案是否验证通过
+        评估用户答案是否验证通过（支持三选项格式）
 
         Args:
             question: 验证问题
@@ -333,29 +333,41 @@ class DynamicVerificationGenerator:
             return True
 
         # 标准化答案
-        answer_normalized = answer.strip().lower()
+        answer_normalized = answer.strip()
 
-        # 检查是否匹配预期答案
+        # 三选项验证逻辑
+        if question.question_type == "three_choice":
+            # "符合"和"部分符合"都算验证通过
+            if answer_normalized in ["符合", "部分符合"]:
+                return "符合" in question.expected_answers or "部分符合" in question.expected_answers
+            # "不符合"算验证失败
+            elif answer_normalized == "不符合":
+                return False
+            # 其他答案（如文本描述）尝试模糊匹配
+            else:
+                # 如果答案包含积极关键词，视为"符合"
+                positive_keywords = ["是的", "确实", "有过", "经历过", "发生过"]
+                if any(kw in answer_normalized for kw in positive_keywords):
+                    return True
+                # 如果答案包含消极关键词，视为"不符合"
+                negative_keywords = ["没有", "不是", "未曾", "没经历"]
+                if any(kw in answer_normalized for kw in negative_keywords):
+                    return False
+                # 默认视为部分符合
+                return True
+
+        # 检查是否匹配预期答案（通用逻辑，保留向后兼容）
         for expected in question.expected_answers:
             expected_normalized = str(expected).strip().lower()
+            answer_lower = answer_normalized.lower()
 
             # 精确匹配
-            if answer_normalized == expected_normalized:
+            if answer_lower == expected_normalized:
                 return True
 
-            # 包含匹配（对于年份等）
-            if expected_normalized in answer_normalized or answer_normalized in expected_normalized:
+            # 包含匹配
+            if expected_normalized in answer_lower or answer_lower in expected_normalized:
                 return True
-
-            # 是/否问题的变体
-            if question.question_type == "yes_no":
-                positive = ["是", "yes", "对", "有", "确实", "没错", "正确"]
-                negative = ["否", "no", "不", "没有", "没", "错", "不对"]
-
-                if expected_normalized in positive and answer_normalized in positive:
-                    return True
-                if expected_normalized in negative and answer_normalized in negative:
-                    return True
 
         return False
 

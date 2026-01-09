@@ -5,6 +5,12 @@ import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
 from models import UserInput
 from theories import TheoryRegistry
+from .constants import (
+    DEFAULT_MAX_THEORIES,
+    DEFAULT_MIN_THEORIES,
+    DEFAULT_FITNESS_THRESHOLD,
+    FALLBACK_FITNESS_THRESHOLD
+)
 
 
 class TheorySelector:
@@ -96,8 +102,8 @@ class TheorySelector:
     def select_theories(
         self,
         user_input: UserInput,
-        max_theories: int = 5,
-        min_theories: int = 3
+        max_theories: int = DEFAULT_MAX_THEORIES,
+        min_theories: int = DEFAULT_MIN_THEORIES
     ) -> Tuple[List[Dict[str, Any]], Optional[List[str]]]:
         """
         选择最适合的理论组合
@@ -152,11 +158,14 @@ class TheorySelector:
         selected_theory_names = set()
         priority_count = {"快速": 0, "基础": 0, "深度": 0}
 
-        # 第一轮：确保每种优先级至少有一个（如果适配度>0.3）
+        # 动态阈值：优先使用DEFAULT_FITNESS_THRESHOLD，如果不足则降低
+        fitness_threshold = DEFAULT_FITNESS_THRESHOLD
+
+        # 第一轮：确保每种优先级至少有一个
         for item in fitness_scores:
             if len(selected) >= max_theories:
                 break
-            if priority_count[item["priority"]] == 0 and item["fitness"] > 0.3:
+            if priority_count[item["priority"]] == 0 and item["fitness"] > fitness_threshold:
                 selected.append(item)
                 selected_theory_names.add(item["theory"])
                 priority_count[item["priority"]] += 1
@@ -165,15 +174,38 @@ class TheorySelector:
         for item in fitness_scores:
             if len(selected) >= max_theories:
                 break
-            if item["theory"] not in selected_theory_names and item["fitness"] > 0.3:
+            if item["theory"] not in selected_theory_names and item["fitness"] > fitness_threshold:
                 selected.append(item)
                 selected_theory_names.add(item["theory"])
                 priority_count[item["priority"]] += 1
 
-        # 如果选中的理论少于最小数量，提示需要补充信息
+        # 如果选中的理论少于最小数量，放宽阈值或直接取前N个
         if len(selected) < min_theories:
-            missing_info = self._get_missing_info_suggestions(user_input)
-            return selected, missing_info
+            # 尝试降低阈值到FALLBACK_FITNESS_THRESHOLD
+            if fitness_threshold > FALLBACK_FITNESS_THRESHOLD:
+                fitness_threshold = FALLBACK_FITNESS_THRESHOLD
+                for item in fitness_scores:
+                    if len(selected) >= max_theories:
+                        break
+                    if item["theory"] not in selected_theory_names and item["fitness"] > fitness_threshold:
+                        selected.append(item)
+                        selected_theory_names.add(item["theory"])
+                        priority_count[item["priority"]] += 1
+
+            # 如果还不够，直接取前min_theories个未选中的理论
+            if len(selected) < min_theories:
+                for item in fitness_scores:
+                    if len(selected) >= min_theories:
+                        break
+                    if item["theory"] not in selected_theory_names:
+                        selected.append(item)
+                        selected_theory_names.add(item["theory"])
+                        priority_count[item["priority"]] += 1
+
+            # 即使放宽阈值，仍然检查是否需要提示补充信息
+            if len(selected) < min_theories:
+                missing_info = self._get_missing_info_suggestions(user_input)
+                return selected, missing_info
 
         return selected, None
 

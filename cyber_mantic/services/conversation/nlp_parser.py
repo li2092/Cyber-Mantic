@@ -14,6 +14,7 @@ from datetime import datetime
 
 from api.manager import APIManager
 from api.prompt_loader import load_prompt
+from core.exceptions import APIError, APITimeoutError, DataParsingError
 from utils.logger import get_logger
 
 # AI增强任务类型（与TaskRouter统一）
@@ -70,6 +71,92 @@ class NLPParser:
 
         self.logger.error(f"无法从AI响应中提取有效JSON。响应内容: {response[:200]}...")
         return None
+
+    def _fallback_parse_icebreak(self, user_message: str) -> Dict[str, Any]:
+        """
+        破冰输入的代码备用解析（AI失败时使用）
+        
+        Args:
+            user_message: 用户输入
+            
+        Returns:
+            解析结果或错误
+        """
+        self.logger.info("使用备用解析器解析破冰输入")
+        
+        # 中文数字映射
+        chinese_to_digit = {
+            '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+            '六': 6, '七': 7, '八': 8, '九': 9,
+            '壹': 1, '贰': 2, '叁': 3, '肆': 4, '伍': 5,
+            '陆': 6, '柒': 7, '捌': 8, '玖': 9
+        }
+        
+        # 提取数字
+        numbers = []
+        
+        # 1. 提取阿拉伯数字（1-9）
+        arabic_numbers = re.findall(r'[1-9]', user_message)
+        for n in arabic_numbers:
+            num = int(n)
+            if 1 <= num <= 9 and num not in numbers:
+                numbers.append(num)
+                if len(numbers) >= 3:
+                    break
+        
+        # 2. 如果不足3个，尝试提取中文数字
+        if len(numbers) < 3:
+            for char in user_message:
+                if char in chinese_to_digit:
+                    num = chinese_to_digit[char]
+                    if num not in numbers:
+                        numbers.append(num)
+                        if len(numbers) >= 3:
+                            break
+        
+        # 验证数字数量
+        if len(numbers) < 3:
+            return {"error": "未能提取到3个有效数字，请确保输入包含3个1-9的数字"}
+        
+        numbers = numbers[:3]  # 只取前3个
+        
+        # 分类关键词映射
+        category_keywords = {
+            "事业": ["工作", "职业", "跳槽", "升职", "创业", "面试", "岗位"],
+            "感情": ["感情", "恋爱", "婚姻", "桃花", "分手", "复合", "结婚", "对象"],
+            "财运": ["财运", "赚钱", "投资", "理财", "收入", "金钱"],
+            "健康": ["健康", "身体", "疾病", "病"],
+            "学业": ["学业", "考试", "学习", "成绩", "升学"],
+            "决策": ["选择", "决定", "是否", "要不要", "该不该"]
+        }
+        
+        # 识别分类
+        category = "其他"
+        for cat, keywords in category_keywords.items():
+            if any(keyword in user_message for keyword in keywords):
+                category = cat
+                break
+        
+        # 提取描述（简化版：去掉数字后的剩余内容）
+        description = user_message
+        for num_str in [str(n) for n in numbers]:
+            description = description.replace(num_str, '')
+        for char in user_message:
+            if char in chinese_to_digit:
+                description = description.replace(char, '')
+        description = re.sub(r'[、，,\s]+', ' ', description).strip()
+        
+        if not description:
+            description = user_message
+        
+        result = {
+            "category": category,
+            "description": description,
+            "numbers": numbers
+        }
+        
+        self.logger.info(f"备用解析成功: {result}")
+        return result
 
     async def parse_icebreak_input(self, user_message: str) -> Dict[str, Any]:
         """
@@ -133,12 +220,16 @@ class NLPParser:
                 self.logger.info(f"破冰输入解析成功: {parsed}")
                 return parsed
             else:
-                self.logger.error(f"AI返回格式错误: {response[:200]}...")
-                return {"error": "解析失败"}
+                self.logger.warning(f"AI返回格式错误: {response[:200]}...，尝试备用解析")
+                return self._fallback_parse_icebreak(user_message)
 
+        except (APIError, APITimeoutError, json.JSONDecodeError) as e:
+            self.logger.warning(f"AI破冰解析失败: {e}，尝试备用解析")
+            return self._fallback_parse_icebreak(user_message)
         except Exception as e:
-            self.logger.error(f"破冰输入解析失败: {e}")
-            return {"error": str(e)}
+            self.logger.exception("破冰解析时发生未预期的错误")
+            # 仍然尝试使用备用解析，但记录完整堆栈
+            return self._fallback_parse_icebreak(user_message)
 
     async def parse_birth_info(self, user_message: str) -> Dict[str, Any]:
         """
@@ -224,8 +315,11 @@ class NLPParser:
             self.logger.info(f"出生信息解析成功: {birth_info}")
             return birth_info
 
-        except Exception as e:
+        except (APIError, APITimeoutError, json.JSONDecodeError) as e:
             self.logger.error(f"出生信息解析失败: {e}")
+            return await self._parse_birth_info_fallback(user_message)
+        except Exception as e:
+            self.logger.exception("出生信息解析时发生未预期的错误")
             return await self._parse_birth_info_fallback(user_message)
 
     def _validate_birth_info_basic(self, birth_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -418,8 +512,11 @@ class NLPParser:
             else:
                 return self._parse_verification_feedback_fallback(user_message)
 
-        except Exception as e:
+        except (APIError, APITimeoutError, json.JSONDecodeError) as e:
             self.logger.error(f"验证反馈解析失败: {e}")
+            return self._parse_verification_feedback_fallback(user_message)
+        except Exception as e:
+            self.logger.exception("验证反馈解析时发生未预期的错误")
             return self._parse_verification_feedback_fallback(user_message)
 
     def _parse_verification_feedback_fallback(self, user_message: str) -> Dict[str, Any]:

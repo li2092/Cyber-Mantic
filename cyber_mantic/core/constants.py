@@ -259,3 +259,53 @@ def get_shichen(hour: int) -> str:
         if start <= hour < end or (start == 23 and (hour >= 23 or hour < 1)):
             return name
     return "子时"  # 默认
+
+# ==================== 新增：配置常量（P0/P1修复） ====================
+
+# 理论选择数量
+DEFAULT_MAX_THEORIES = 5  # 最多选择的理论数量
+DEFAULT_MIN_THEORIES = 3  # 最少选择的理论数量（确保多理论交叉验证）
+
+# 理论适配度阈值
+DEFAULT_FITNESS_THRESHOLD = 0.3  # 初始适配度阈值（30%）
+FALLBACK_FITNESS_THRESHOLD = 0.15  # 降级阈值（15%，选不够理论时使用）
+
+# 冲突级别阈值
+JUDGMENT_THRESHOLD_MINOR = 0.2  # 小于20%差异视为微小差异（Level 2）
+JUDGMENT_THRESHOLD_SIGNIFICANT = 0.4  # 小于40%差异视为显著差异（Level 3），否则为严重冲突（Level 4）
+
+# 置信度权重因子
+CONFIDENCE_WEIGHT_FACTOR = 1.5  # 提升高置信度理论的影响（1.5倍权重）
+
+# 理论分析超时
+DEFAULT_THEORY_TIMEOUT = 250  # 单个理论分析的总超时时间
+
+# LLM解读超时
+DEFAULT_INTERPRETATION_TIMEOUT = 250  # 主模型解读超时
+DEFAULT_INTERPRETATION_TIMEOUT_SECONDARY = 120  # 副模型（双模型验证）解读超时
+
+# 报告生成超时
+DEFAULT_REPORT_TIMEOUT = 300  # 综合报告生成超时
+
+# API调用超时
+DEFAULT_API_TIMEOUT = 60  # 单次API调用的默认超时
+
+# 回溯验证时间范围
+DEFAULT_VERIFICATION_YEARS = 3  # 回溯验证默认询问"过去3年"
+
+# 阶段超时
+CONVERSATION_STAGE_TIMEOUT = 1800  # 单个阶段最长等待时间（30分钟）
+
+# 缓存大小
+LUNAR_CONVERSION_CACHE_SIZE = 500  # 农历转换缓存容量
+BAZI_CALCULATION_CACHE_SIZE = 1000  # 八字计算缓存容量
+THEORY_RESULT_CACHE_SIZE = 200  # 理论结果缓存容量
+
+# 缓存TTL（秒）
+DEFAULT_CACHE_TTL = 86400  # 默认缓存24小时
+
+# 线程等待时间
+WORKER_THREAD_WAIT_TIMEOUT = 2000  # QThread等待超时（毫秒）
+
+# 进度条更新间隔
+PROGRESS_UPDATE_INTERVAL = 100  # 进度条更新频率（毫秒）

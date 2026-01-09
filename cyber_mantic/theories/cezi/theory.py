@@ -82,10 +82,18 @@ class CeZiTheory(BaseTheory):
         从问题中提取要测的字
 
         优先级：
+        0. **优先使用FlowGuard已提取的字符（user_input.character）** - AI 智能提取最准确
         1. 问题中明确说"测XX字"
-        2. 问题中的第一个汉字
-        3. 使用当前时辰地支的第一个字
+        2. 问题中的引号字符
+        3. 句尾单独出现的字（逗号/句号后）
+        4. 第一个有意义的汉字
+        5. 使用当前时辰地支
         """
+        # 方法0: 优先使用FlowGuard验证过的字符（AI 已智能分析）
+        if user_input.character and len(user_input.character) > 0:
+            self.logger.info(f"使用FlowGuard提取的字符: {user_input.character}")
+            return user_input.character[0]
+
         # 方法1: 检测"测X字"模式
         match = re.search(r'测[""\"]?([^""\"\s]{1,3})[""\"]?字', question)
         if match:
@@ -98,18 +106,28 @@ class CeZiTheory(BaseTheory):
             if chinese_chars:
                 return chinese_chars[0]
 
-        # 方法3: 提取第一个汉字
+        # 方法3: 提取句尾单字（逗号/句号/问号后的单个汉字）
+        # 如："就像知道这辈子能不能升官发财，望" → 提取"望"
+        match = re.search(r'[，。！？,.\!?]\s*([\u4e00-\u9fff])[\s，。！？,.\!?]*$', question)
+        if match:
+            char = match.group(1)
+            # 排除语气词
+            if char not in ['啊', '吧', '呢', '吗', '哦', '嗯']:
+                self.logger.info(f"提取句尾单字: {char}")
+                return char
+
+        # 方法4: 提取第一个有意义的汉字
         chinese_chars = re.findall(r'[\u4e00-\u9fff]', question)
         if chinese_chars:
-            # 跳过常见的问题词
-            skip_words = ['问', '请', '想', '能', '会', '吗', '呢', '啊', '的', '了', '是', '有', '我', '你', '他']
+            # 跳过常见的问题词和语气词
+            skip_words = ['问', '请', '想', '能', '会', '吗', '呢', '啊', '的', '了', '是', '有', '我', '你', '他', '这', '那']
             for char in chinese_chars:
                 if char not in skip_words:
                     return char
             # 如果都是常见词，取第一个
             return chinese_chars[0]
 
-        # 方法4: 使用时辰地支
+        # 方法5: 使用时辰地支
         from theories.bazi.constants import DI_ZHI
 
         # 时辰到地支索引的映射

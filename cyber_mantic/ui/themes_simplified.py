@@ -135,7 +135,13 @@ class ThemeSystem:
         QMainWindow, QWidget {{
             background-color: {bg};
             color: {c['text_primary']};
-            font-family: "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            font-family: "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
+        }}
+
+        /* 等宽字体（代码块、日志等）- 避免回退到老旧的 Fixedsys */
+        QTextEdit[monospace="true"], QPlainTextEdit[monospace="true"],
+        QTextBrowser[monospace="true"], pre, code {{
+            font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
         }}
 
         /* ==================== 玻璃态卡片 (GlassCard) ==================== */

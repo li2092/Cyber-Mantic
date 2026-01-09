@@ -23,6 +23,7 @@ V2流程（5阶段8步骤）：
 
 import json
 from typing import Dict, Any, Optional, Callable
+from core.constants import DEFAULT_MAX_THEORIES, DEFAULT_MIN_THEORIES
 from datetime import datetime
 
 from api.manager import APIManager
@@ -85,6 +86,74 @@ class ConversationService:
         "学业": ["学业", "考试", "学习", "升学"],
         "决策": ["决定", "选择", "是否"],
         "其他": []
+    }
+
+    # 理论配置映射（用于消除重复代码）
+    THEORY_CONFIGS = {
+        "八字": {
+            "display_name": "八字",
+            "progress_name": "八字",
+            "progress_text": "正在计算八字命盘...",
+            "progress_value": 91,
+            "theory_class": BaZiTheory,
+            "context_attr": "bazi_result",
+            "has_summary": True,
+            "has_judgment": True,
+        },
+        "紫微斗数": {
+            "display_name": "紫微斗数",
+            "progress_name": "紫微",
+            "progress_text": "正在排紫微斗数命盘...",
+            "progress_value": 93,
+            "theory_class": ZiWeiTheory,
+            "context_attr": "ziwei_result",
+            "has_summary": False,
+            "default_summary": "命盘排布完成",
+            "has_judgment": False,
+            "default_judgment": "平",
+        },
+        "奇门遁甲": {
+            "display_name": "奇门遁甲",
+            "progress_name": "奇门",
+            "progress_text": "正在起奇门局...",
+            "progress_value": 94,
+            "theory_class": QiMenTheory,
+            "context_attr": "qimen_result",
+            "has_summary": True,
+            "has_judgment": True,
+        },
+        "大六壬": {
+            "display_name": "大六壬",
+            "progress_name": "六壬",
+            "progress_text": "正在起六壬课...",
+            "progress_value": 95,
+            "theory_class": DaLiuRenTheory,
+            "context_attr": "liuren_result",
+            "has_summary": False,
+            "default_summary": "六壬课起成",
+            "has_judgment": False,
+            "default_judgment": "平",
+        },
+        "六爻": {
+            "display_name": "六爻",
+            "progress_name": "六爻",
+            "progress_text": "正在起六爻卦...",
+            "progress_value": 96,
+            "theory_class": LiuYaoTheory,
+            "context_attr": "liuyao_result",
+            "has_summary": True,
+            "has_judgment": True,
+        },
+        "梅花易数": {
+            "display_name": "梅花易数",
+            "progress_name": "梅花",
+            "progress_text": "正在起梅花卦...",
+            "progress_value": 97,
+            "theory_class": MeiHuaTheory,
+            "context_attr": "meihua_result",
+            "has_summary": True,
+            "has_judgment": True,
+        },
     }
 
     def __init__(self, api_manager: APIManager, config: Optional[Dict[str, Any]] = None):
@@ -783,7 +852,10 @@ MBTI：{self.context.mbti_type or '未提供'}
             mbti_type=self.context.mbti_type,
             current_time=datetime.now()
         )
-        selected, _ = self.theory_selector.select_theories(user_input, max_theories=6, min_theories=3)
+        # 从配置读取理论数量限制，默认max=5, min=3（符合产品定义"3-5个理论"）
+        max_theories = self.config.get("conversation", {}).get("max_theories", DEFAULT_MAX_THEORIES)
+        min_theories = self.config.get("conversation", {}).get("min_theories", DEFAULT_MIN_THEORIES)
+        selected, _ = self.theory_selector.select_theories(user_input, max_theories=max_theories, min_theories=min_theories)
         self.context.selected_theories = selected
 
         # 格式化理论列表（支持字典列表和字符串列表）
@@ -812,8 +884,77 @@ MBTI：{self.context.mbti_type or '未提供'}
                 theory_name = str(theory_item)
             self.context.theory_confidence_adjustment[theory_name] = adj
 
+    def _process_theory(
+        self,
+        theory_name: str,
+        user_input: UserInput,
+        progress_callback: Optional[Callable] = None,
+        theory_callback: Optional[Callable] = None
+    ) -> None:
+        """
+        统一处理单个理论的计算流程（消除重复代码）
+
+        Args:
+            theory_name: 理论名称
+            user_input: 用户输入
+            progress_callback: 进度回调
+            theory_callback: 理论状态回调
+        """
+        if theory_name not in self.THEORY_CONFIGS:
+            self.logger.warning(f"未知理论: {theory_name}")
+            return
+
+        config = self.THEORY_CONFIGS[theory_name]
+
+        # 1. 进度回调
+        if progress_callback:
+            progress_callback(
+                config["progress_name"],
+                config["progress_text"],
+                config["progress_value"]
+            )
+
+        # 2. 开始回调
+        if theory_callback:
+            theory_callback('started', config["display_name"], None)
+
+        # 3. 执行计算
+        try:
+            theory_instance = config["theory_class"]()
+            result = theory_instance.calculate(user_input)
+
+            # 保存结果到上下文
+            setattr(self.context, config["context_attr"], result)
+
+            # 4. 完成回调
+            if theory_callback:
+                # 获取summary和judgment
+                if config.get("has_summary"):
+                    summary_method_name = f"_get_{config['context_attr'].replace('_result', '')}_summary"
+                    summary = getattr(self, summary_method_name)(result)
+                else:
+                    summary = config.get("default_summary", "计算完成")
+
+                if config.get("has_judgment"):
+                    judgment_method_name = f"_get_{config['context_attr'].replace('_result', '')}_judgment"
+                    judgment = getattr(self, judgment_method_name)(result)
+                else:
+                    judgment = config.get("default_judgment", "平")
+
+                theory_callback('completed', config["display_name"], {
+                    'summary': summary,
+                    'judgment': judgment
+                })
+
+        except Exception as e:
+            self.logger.error(f"{theory_name}计算失败: {e}")
+            if theory_callback:
+                theory_callback('error', config["display_name"], {
+                    'error': str(e)
+                })
+
     async def _run_deep_analysis(self, progress_callback, theory_callback=None):
-        """执行深度分析"""
+        """执行深度分析（重构版：使用统一的理论处理函数）"""
         if not self.context.birth_info:
             return
 
@@ -837,95 +978,15 @@ MBTI：{self.context.mbti_type or '未提供'}
             else:
                 selected_theory_names.append(str(t))
 
-        if "八字" in selected_theory_names:
-            if progress_callback:
-                progress_callback("八字", "正在计算八字命盘...", 91)
-            if theory_callback:
-                theory_callback('started', '八字', None)
-            try:
-                self.context.bazi_result = BaZiTheory().calculate(user_input)
-                if theory_callback:
-                    theory_callback('completed', '八字', {
-                        'summary': self._get_bazi_summary(self.context.bazi_result),
-                        'judgment': self._get_bazi_judgment(self.context.bazi_result)
-                    })
-            except Exception as e:
-                self.logger.error(f"八字计算失败: {e}")
-
-        if "紫微斗数" in selected_theory_names:
-            if progress_callback:
-                progress_callback("紫微", "正在排紫微斗数命盘...", 93)
-            if theory_callback:
-                theory_callback('started', '紫微斗数', None)
-            try:
-                self.context.ziwei_result = ZiWeiTheory().calculate(user_input)
-                if theory_callback:
-                    theory_callback('completed', '紫微斗数', {
-                        'summary': '命盘排布完成',
-                        'judgment': '平'
-                    })
-            except Exception as e:
-                self.logger.error(f"紫微斗数计算失败: {e}")
-
-        if "奇门遁甲" in selected_theory_names:
-            if progress_callback:
-                progress_callback("奇门", "正在起奇门局...", 94)
-            if theory_callback:
-                theory_callback('started', '奇门遁甲', None)
-            try:
-                self.context.qimen_result = QiMenTheory().calculate(user_input)
-                if theory_callback:
-                    theory_callback('completed', '奇门遁甲', {
-                        'summary': self._get_qimen_summary(self.context.qimen_result),
-                        'judgment': self._get_qimen_judgment(self.context.qimen_result)
-                    })
-            except Exception as e:
-                self.logger.error(f"奇门计算失败: {e}")
-
-        if "大六壬" in selected_theory_names:
-            if progress_callback:
-                progress_callback("六壬", "正在起六壬课...", 95)
-            if theory_callback:
-                theory_callback('started', '大六壬', None)
-            try:
-                self.context.liuren_result = DaLiuRenTheory().calculate(user_input)
-                if theory_callback:
-                    theory_callback('completed', '大六壬', {
-                        'summary': '六壬课起成',
-                        'judgment': '平'
-                    })
-            except Exception as e:
-                self.logger.error(f"六壬计算失败: {e}")
-
-        if "六爻" in selected_theory_names:
-            if progress_callback:
-                progress_callback("六爻", "正在起六爻卦...", 96)
-            if theory_callback:
-                theory_callback('started', '六爻', None)
-            try:
-                self.context.liuyao_result = LiuYaoTheory().calculate(user_input)
-                if theory_callback:
-                    theory_callback('completed', '六爻', {
-                        'summary': self._get_liuyao_summary(self.context.liuyao_result),
-                        'judgment': self._get_liuyao_judgment(self.context.liuyao_result)
-                    })
-            except Exception as e:
-                self.logger.error(f"六爻计算失败: {e}")
-
-        if "梅花易数" in selected_theory_names:
-            if progress_callback:
-                progress_callback("梅花", "正在起梅花卦...", 97)
-            if theory_callback:
-                theory_callback('started', '梅花易数', None)
-            try:
-                self.context.meihua_result = MeiHuaTheory().calculate(user_input)
-                if theory_callback:
-                    theory_callback('completed', '梅花易数', {
-                        'summary': self._get_meihua_summary(self.context.meihua_result),
-                        'judgment': self._get_meihua_judgment(self.context.meihua_result)
-                    })
-            except Exception as e:
-                self.logger.error(f"梅花易数计算失败: {e}")
+        # 使用统一方法处理所有理论
+        for theory_name in selected_theory_names:
+            if theory_name in self.THEORY_CONFIGS:
+                self._process_theory(
+                    theory_name,
+                    user_input,
+                    progress_callback,
+                    theory_callback
+                )
 
     def _retry_msg(self, stage: str) -> str:
         """生成重试提示（V2: 使用FlowGuard显示进度）"""

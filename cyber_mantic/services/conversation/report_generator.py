@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, TYPE_CHECKING
 from datetime import datetime
 
 from utils.logger import get_logger
+from core.timeline_analyzer import TimelineAnalyzer
 
 if TYPE_CHECKING:
     from api.manager import APIManager
@@ -55,6 +56,7 @@ class ReportGenerator:
         self.api_manager = api_manager
         self.context = context
         self.logger = get_logger(__name__)
+        self.timeline_analyzer = TimelineAnalyzer()  # 初始化时间线分析器
 
     async def generate_final_report(self) -> str:
         """
@@ -149,6 +151,12 @@ class ReportGenerator:
         # 获取MBTI个性化指导
         mbti_style = self._get_mbti_style_guidance()
 
+        # 动态生成时间线prompt（根据用户问题）
+        timeline_prompt = self.timeline_analyzer.generate_timeline_prompt_section(
+            question=self.context.question_description,
+            question_type=self.context.question_category
+        )
+
         return f"""你是一位经验丰富的命理分析师。请基于以下信息，生成一份专业的命理分析报告。
 
 【当前时间】：{current_time_display}
@@ -187,17 +195,7 @@ class ReportGenerator:
 
 [针对每个使用的理论，分别说明核心结论和关键发现，每个理论100-150字]
 
-## 🔮 预测分析（时间线视图）
-
-### 近期（1-3个月）
-- **整体趋势**：[描述]
-- **关键节点**：[具体日期或时间段] - [可能事件]
-- **注意事项**：[提醒]
-
-### 中期（3-12个月）
-- **整体趋势**：[描述]
-- **机会窗口**：[时间段] - [建议行动]
-- **风险提示**：[需要注意的问题]
+{timeline_prompt}
 
 ## 🧭 行动建议
 

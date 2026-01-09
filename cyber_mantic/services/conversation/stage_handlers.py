@@ -13,6 +13,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 
 from api.manager import APIManager
+from core.constants import DEFAULT_MAX_THEORIES, DEFAULT_MIN_THEORIES
 from models import UserInput
 from utils.logger import get_logger
 
@@ -222,10 +223,12 @@ class Stage2Handler(BaseStageHandler):
         api_manager: APIManager,
         nlp_parser: NLPParser,
         context: ConversationContext,
-        theory_selector
+        theory_selector,
+        config: dict = None
     ):
         super().__init__(api_manager, nlp_parser, context)
         self.theory_selector = theory_selector
+        self.config = config or {}
 
     async def handle(
         self,
@@ -273,10 +276,13 @@ class Stage2Handler(BaseStageHandler):
             current_time=datetime.now()
         )
 
+        # 从配置读取理论数量限制，默认max=5, min=3（符合产品定义"3-5个理论"）
+        max_theories = self.config.get("conversation", {}).get("max_theories", DEFAULT_MAX_THEORIES)
+        min_theories = self.config.get("conversation", {}).get("min_theories", DEFAULT_MIN_THEORIES)
         selected_theories, missing_info = self.theory_selector.select_theories(
             user_input,
-            max_theories=6,
-            min_theories=3
+            max_theories=max_theories,
+            min_theories=min_theories
         )
 
         self.context.selected_theories = [t["theory"] for t in selected_theories]

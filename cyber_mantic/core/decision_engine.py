@@ -12,17 +12,20 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from models import UserInput, TheoryAnalysisResult, ConflictInfo, ComprehensiveReport
-
-
-# 默认超时配置（秒）
-DEFAULT_THEORY_TIMEOUT = 250  # 单个理论分析超时
-DEFAULT_INTERPRETATION_TIMEOUT = 250  # LLM解读超时（主模型）
-DEFAULT_INTERPRETATION_TIMEOUT_SECONDARY = 120  # LLM解读超时（副模型）
-DEFAULT_REPORT_TIMEOUT = 300  # 综合报告生成超时
 from theories import TheoryRegistry
 from api import APIManager, PromptTemplates
 from .theory_selector import TheorySelector
 from .conflict_resolver import ConflictResolver
+from .arbitration_system import ArbitrationSystem
+from .exceptions import TheoryCalculationError, APIError, APITimeoutError
+from .constants import (
+    DEFAULT_MAX_THEORIES,
+    DEFAULT_MIN_THEORIES,
+    DEFAULT_THEORY_TIMEOUT,
+    DEFAULT_INTERPRETATION_TIMEOUT,
+    DEFAULT_INTERPRETATION_TIMEOUT_SECONDARY,
+    DEFAULT_REPORT_TIMEOUT
+)
 from utils.logger import get_logger, log_calculation, log_conflict_resolution, log_performance
 from utils.mbti_analyzer import MBTIAnalyzer
 from .ai_assistant import AIAssistant
@@ -41,7 +44,8 @@ class DecisionEngine:
         self.config = config
         self.theory_selector = TheorySelector()
         self.api_manager = APIManager(config.get("api", {}))
-        self.conflict_resolver = ConflictResolver()
+        self.arbitration_system = ArbitrationSystem(self.api_manager)
+        self.conflict_resolver = ConflictResolver(self.arbitration_system)
         self.ai_assistant = AIAssistant(self.api_manager)  # 新增AI助手
         self.logger = get_logger()
 
@@ -58,9 +62,9 @@ class DecisionEngine:
         """
         start_time = time.time()
 
-        print("=" * 60)
-        print("赛博玄数 - 开始分析")
-        print("=" * 60)
+        self.logger.debug("=" * 60)
+        self.logger.debug("赛博玄数 - 开始分析")
+        self.logger.debug("=" * 60)
 
         self.logger.info("="*60)
         self.logger.info("开始新的分析流程")
@@ -73,21 +77,21 @@ class DecisionEngine:
             progress_callback("系统", "开始分析", 0, "============================================================\n赛博玄数 - 开始分析\n============================================================")
 
         # 1. 选择理论
-        print("\n[步骤1] 选择适合的理论...")
+        self.logger.debug("\n[步骤1] 选择适合的理论...")
         if progress_callback:
             progress_callback("系统", "选择理论", 5, "[步骤1] 选择适合的理论...")
         theory_select_start = time.time()
         selected_theories, missing_info = self.theory_selector.select_theories(
             user_input,
-            max_theories=self.config.get("analysis", {}).get("max_theories", 5),
-            min_theories=self.config.get("analysis", {}).get("min_theories", 3)
+            max_theories=self.config.get("analysis", {}).get("max_theories", DEFAULT_MAX_THEORIES),
+            min_theories=self.config.get("analysis", {}).get("min_theories", DEFAULT_MIN_THEORIES)
         )
 
         if missing_info:
-            print(f"提示：补充以下信息可提高准确性：{', '.join(missing_info)}")
+            self.logger.debug(f"提示：补充以下信息可提高准确性：{', '.join(missing_info)}")
 
         theory_names = [t["theory"] for t in selected_theories]
-        print(f"选中理论：{', '.join(theory_names)}")
+        self.logger.debug(f"选中理论：{', '.join(theory_names)}")
 
         theory_select_duration = time.time() - theory_select_start
         self.logger.info(f"理论选择完成，选中 {len(theory_names)} 个理论: {', '.join(theory_names)}")
@@ -102,7 +106,7 @@ class DecisionEngine:
 
         # 2. 确定执行顺序
         execution_order = self.theory_selector.determine_execution_order(selected_theories)
-        print(f"执行顺序：{' -> '.join(execution_order)}")
+        self.logger.debug(f"执行顺序：{' -> '.join(execution_order)}")
         self.logger.info(f"执行顺序: {' -> '.join(execution_order)}")
 
         # 通过 progress_callback 传递执行顺序信息
@@ -110,17 +114,18 @@ class DecisionEngine:
             progress_callback("系统", "确定执行顺序", 10, f"执行顺序：{' -> '.join(execution_order)}")
 
         # 3. 运行各理论计算
-        print("\n[步骤2] 运行理论计算...")
+        self.logger.debug("\n[步骤2] 运行理论计算...")
         if progress_callback:
             progress_callback("系统", "开始计算", 10, "[步骤2] 运行理论计算...")
         theory_results = []
+        failed_theories = []  # 记录失败的理论
         total_theories = len(execution_order)
 
         for idx, theory_name in enumerate(execution_order):
             # 计算当前进度（10%-70%分配给理论分析）
             base_progress = 10 + int((idx / total_theories) * 60)
 
-            print(f"\n正在计算 {theory_name}...")
+            self.logger.debug(f"\n正在计算 {theory_name}...")
             if progress_callback:
                 progress_callback(theory_name, "计算排盘", base_progress, f"正在计算 {theory_name}...")
 
@@ -129,12 +134,12 @@ class DecisionEngine:
                 try:
                     # 计算排盘
                     calculation_data = theory.calculate(user_input)
-                    print(f"{theory_name} 计算完成")
+                    self.logger.debug(f"{theory_name} 计算完成")
                     if progress_callback:
                         progress_callback(theory_name, "计算完成", base_progress + int(60 / total_theories / 4), f"{theory_name} 计算完成")
 
                     # LLM解读
-                    print(f"正在解读 {theory_name}...")
+                    self.logger.debug(f"正在解读 {theory_name}...")
                     if progress_callback:
                         progress_callback(theory_name, "AI解读中", base_progress + int(60 / total_theories / 2), f"正在解读 {theory_name}...")
                         # 如果启用了双模型验证，显示提示
@@ -164,7 +169,7 @@ class DecisionEngine:
                     )
 
                     theory_results.append(result)
-                    print(f"{theory_name} 解读完成")
+                    self.logger.debug(f"{theory_name} 解读完成")
 
                     # 通过 progress_callback 传递完成信息
                     if progress_callback:
@@ -174,12 +179,56 @@ class DecisionEngine:
                         detail_msg = f"✓ {theory_name} 分析完成 - 判断: {judgment}，置信度: {confidence*100:.1f}%"
                         progress_callback(theory_name, "分析完成", base_progress + int(60 / total_theories), detail_msg)
 
-                except Exception as e:
-                    print(f"{theory_name} 分析失败: {e}")
-                    self.logger.error(f"{theory_name} 分析失败: {e}")
-                    # 通过 progress_callback 传递失败信息
+                except TheoryCalculationError as e:
+                    # 理论计算错误（已知错误类型）
+                    self.logger.error(f"{theory_name} 计算失败: {e.message}")
+                    failed_theories.append({
+                        "theory": theory_name,
+                        "error_type": "calculation_error",
+                        "error": e.message,
+                        "timestamp": datetime.now().isoformat()
+                    })
                     if progress_callback:
-                        progress_callback(theory_name, "分析失败", base_progress, f"✗ {theory_name} 分析失败: {str(e)}")
+                        progress_callback(theory_name, "计算失败", base_progress, f"✗ {theory_name} 计算失败")
+                    continue
+
+                except APITimeoutError as e:
+                    # API超时错误
+                    self.logger.warning(f"{theory_name} 解读超时: {e.timeout}秒")
+                    failed_theories.append({
+                        "theory": theory_name,
+                        "error_type": "timeout",
+                        "error": f"API响应超时（{e.timeout}秒）",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    if progress_callback:
+                        progress_callback(theory_name, "解读超时", base_progress, f"✗ {theory_name} 解读超时")
+                    continue
+
+                except APIError as e:
+                    # API调用错误
+                    self.logger.error(f"{theory_name} API错误: {e.message}")
+                    failed_theories.append({
+                        "theory": theory_name,
+                        "error_type": "api_error",
+                        "error": e.message,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    if progress_callback:
+                        progress_callback(theory_name, "API错误", base_progress, f"✗ {theory_name} API调用失败")
+                    continue
+
+                except Exception as e:
+                    # 未预期的错误（记录完整堆栈）
+                    self.logger.exception(f"{theory_name} 分析时发生未预期的错误")
+                    failed_theories.append({
+                        "theory": theory_name,
+                        "error_type": "unexpected_error",
+                        "error": str(e),
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    if progress_callback:
+                        progress_callback(theory_name, "分析失败", base_progress, f"✗ {theory_name} 分析失败: {str(e)[:50]}")
                     continue
 
         # 检查是否有成功的理论结果
@@ -189,28 +238,38 @@ class DecisionEngine:
             raise Exception(error_msg)
 
         self.logger.info(f"成功分析 {len(theory_results)}/{len(execution_order)} 个理论")
+
+        # 记录失败理论详情
+        if failed_theories:
+            self.logger.warning(f"失败理论: {[f['theory'] for f in failed_theories]}")
+            for failed in failed_theories:
+                self.logger.debug(f"  - {failed['theory']}: {failed['error_type']} - {failed['error']}")
+
         if progress_callback:
-            progress_callback("系统", "理论分析汇总", 72, f"成功分析 {len(theory_results)}/{len(execution_order)} 个理论")
+            summary_msg = f"成功分析 {len(theory_results)}/{len(execution_order)} 个理论"
+            if failed_theories:
+                summary_msg += f"\n失败: {', '.join([f['theory'] for f in failed_theories])}"
+            progress_callback("系统", "理论分析汇总", 72, summary_msg)
 
         # 4. 检测并解决冲突
-        print("\n[步骤3] 检测并解决理论间冲突...")
+        self.logger.debug("\n[步骤3] 检测并解决理论间冲突...")
         if progress_callback:
             progress_callback("系统", "检测冲突", 75, "[步骤3] 检测并解决理论间冲突...")
         conflict_start = time.time()
         conflict_info = self.conflict_resolver.detect_and_resolve_conflicts(theory_results)
 
         if conflict_info.has_conflict:
-            print(f"检测到 {len(conflict_info.conflicts)} 个冲突")
+            self.logger.debug(f"检测到 {len(conflict_info.conflicts)} 个冲突")
             self.logger.warning(f"检测到 {len(conflict_info.conflicts)} 个理论冲突")
             if progress_callback:
                 progress_callback("系统", "冲突检测", 76, f"检测到 {len(conflict_info.conflicts)} 个冲突")
 
             if conflict_info.resolution:
                 strategy = conflict_info.resolution.get("总体策略", "")
-                print(f"解决策略：{strategy}")
+                self.logger.debug(f"解决策略：{strategy}")
                 # 打印冲突摘要
                 summary = self.conflict_resolver.get_conflict_summary(conflict_info)
-                print(f"冲突摘要：\n{summary}")
+                self.logger.debug(f"冲突摘要：\n{summary}")
 
                 # 通过 progress_callback 传递详细信息到 UI
                 if progress_callback:
@@ -222,8 +281,65 @@ class DecisionEngine:
                     conflicts=conflict_info.conflicts,
                     resolution=conflict_info.resolution
                 )
+
+                # 检查是否需要仲裁
+                if conflict_info.resolution.get("需要仲裁"):
+                    self.logger.debug("检测到需要仲裁的冲突，开始仲裁流程...")
+                    self.logger.info("开始仲裁流程")
+                    
+                    # 通知UI仲裁开始
+                    if progress_callback:
+                        progress_callback("系统", "仲裁中", 79, "正在进行第三方理论仲裁...")
+                    
+                    try:
+                        # 获取需要仲裁的冲突
+                        arbitration_conflicts = conflict_info.resolution.get("仲裁冲突", [])
+                        
+                        for conflict in arbitration_conflicts:
+                            # 请求仲裁
+                            from .arbitration_system import ArbitrationConflictInfo
+                            arb_conflict = ArbitrationConflictInfo(
+                                question_type=user_input.question_type,
+                                theories_involved=conflict.get("theories", []),
+                                conflict_description=conflict.get("description", ""),
+                                conflict_level=conflict.get("level", 4)
+                            )
+                            
+                            # 执行仲裁
+                            arbitration_result = await self.arbitration_system.request_arbitration(arb_conflict)
+                            
+                            if arbitration_result.status.value == "completed":
+                                # 仲裁成功，通知UI
+                                if progress_callback:
+                                    arb_theory = arbitration_result.arbitration_theory
+                                    progress_callback(arb_theory, "仲裁完成", 80, f"仲裁理论：{arb_theory}")
+                                
+                                self.logger.debug(f"仲裁完成：使用 {arbitration_result.arbitration_theory} 作为仲裁理论")
+                                self.logger.info(f"仲裁成功：{arbitration_result.arbitration_theory}")
+                                
+                                # 执行仲裁理论分析
+                                arb_result = await self.arbitration_system.execute_arbitration(
+                                    arbitration_result, 
+                                    user_input, 
+                                    theory_results
+                                )
+                                
+                                # 将仲裁结果加入理论结果
+                                if arb_result:
+                                    theory_results[arbitration_result.arbitration_theory] = arb_result
+                                    self.logger.debug(f"仲裁结果已整合")
+                            else:
+                                self.logger.debug(f"仲裁失败：{arbitration_result.explanation}")
+                                self.logger.warning(f"仲裁失败：{arbitration_result.explanation}")
+                                
+                    except Exception as e:
+                        self.logger.debug(f"仲裁过程出错：{e}")
+                        self.logger.error(f"仲裁过程出错：{e}")
+                        if progress_callback:
+                            progress_callback("系统", "仲裁失败", 80, f"仲裁失败：{str(e)}")
+
         else:
-            print("未检测到冲突")
+            self.logger.debug("未检测到冲突")
             self.logger.info("理论结果一致，未检测到冲突")
             # 通过 progress_callback 传递信息到 UI
             if progress_callback:
@@ -234,7 +350,7 @@ class DecisionEngine:
         log_performance(operation="冲突检测与解决", duration=conflict_duration)
 
         # 5. 生成综合报告
-        print("\n[步骤4] 生成综合报告...")
+        self.logger.debug("\n[步骤4] 生成综合报告...")
         if progress_callback:
             progress_callback("系统", "生成报告", 85, "[步骤4] 生成综合报告...")
         report = await self._generate_comprehensive_report(
@@ -254,10 +370,10 @@ class DecisionEngine:
         self.logger.info(f"综合置信度: {report.overall_confidence:.2%}")
         self.logger.info("="*60)
 
-        print("\n" + "=" * 60)
-        print("分析完成")
-        print(f"总耗时: {total_duration:.2f}秒")
-        print("=" * 60)
+        self.logger.debug("\n" + "=" * 60)
+        self.logger.debug("分析完成")
+        self.logger.debug(f"总耗时: {total_duration:.2f}秒")
+        self.logger.debug("=" * 60)
 
         # 向UI传递分析完成信息
         if progress_callback:
@@ -471,7 +587,7 @@ class DecisionEngine:
             overall_confidence = 0.5
 
         # ========== 使用AI智能助手生成摘要和建议（后台调用Kimi） ==========
-        print("\n[步骤5] AI智能助手生成摘要和建议...")
+        self.logger.debug("\n[步骤5] AI智能助手生成摘要和建议...")
         if progress_callback:
             progress_callback("系统", "智能摘要生成", 90, "[步骤5] AI智能助手生成摘要和建议...")
 

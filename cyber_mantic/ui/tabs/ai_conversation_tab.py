@@ -50,7 +50,8 @@ class ConversationWorker(QThread):
     # V2新增信号：理论分析进度
     theory_started = pyqtSignal(str)           # 理论开始计算（theory_name）
     theory_completed = pyqtSignal(str, dict)   # 理论完成（theory_name, result）
-    quick_result = pyqtSignal(str, str, str)   # 快速结果（theory_name, summary, judgment）
+    quick_result = pyqtSignal(str, str, str)
+    theory_arbitrating = pyqtSignal(str)       # 理论仲裁中（theory_name）   # 快速结果（theory_name, summary, judgment）
 
     def __init__(self, service: ConversationService, user_message: str, is_start: bool = False):
         super().__init__()
@@ -130,6 +131,8 @@ class ConversationWorker(QThread):
             summary = data.get('summary', '') if data else ''
             judgment = data.get('judgment', '平') if data else '平'
             self.quick_result.emit(theory_name, summary, judgment)
+        elif event_type == 'arbitrating':
+            self.theory_arbitrating.emit(theory_name)
 
 
 class AIConversationTab(QWidget):
@@ -549,6 +552,8 @@ class AIConversationTab(QWidget):
         # V2: 连接理论分析信号
         self.worker.theory_started.connect(self._on_theory_started)
         self.worker.quick_result.connect(self._on_quick_result)
+        self.worker.theory_arbitrating.connect(self._on_theory_arbitrating)
+        self.worker.theory_arbitrating.connect(self._on_theory_arbitrating)
         self.worker.start()
 
     def _on_welcome_message(self, message: str):
@@ -691,6 +696,12 @@ class AIConversationTab(QWidget):
         self.logger.debug(f"理论完成: {theory_name}, 判断: {judgment}")
         if hasattr(self, 'quick_result_panel'):
             self.quick_result_panel.set_theory_completed(theory_name, summary, judgment)
+
+    def _on_theory_arbitrating(self, theory_name: str):
+        """V2: 理论仲裁中"""
+        self.logger.debug(f"理论仲裁中: {theory_name}")
+        if hasattr(self, 'quick_result_panel'):
+            self.quick_result_panel.set_theory_arbitrating(theory_name)
 
     def _on_error(self, error_msg: str):
         """错误处理"""
@@ -927,7 +938,11 @@ class AIConversationTab(QWidget):
                 pass  # 信号未连接时忽略
             # 等待线程结束（最多2秒）
             if not self.worker.wait(2000):
-                self.logger.warning("工作线程未能在2秒内结束")
+                self.logger.warning("工作线程未能在2秒内结束，强制终止")
+                self.worker.terminate()  # 强制终止线程
+                self.worker.wait()  # 等待终止完成
+            # Qt对象清理
+            self.worker.deleteLater()
             self.worker = None
 
     def eventFilter(self, obj, event):

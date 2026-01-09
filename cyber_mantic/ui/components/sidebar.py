@@ -23,9 +23,10 @@ from PyQt6.QtGui import QFont, QPixmap
 import os
 
 from .nav_item import NavItem
+from ..design_system import spacing, font_size, font_weight, border_radius, tokens, colors
 
 
-# 导航项配置
+# 导航项配置 - 使用 Emoji 图标
 NAV_ITEMS = [
     {"id": "wendao", "name": "问道", "icon": "💬"},
     {"id": "tuiyan", "name": "推演", "icon": "📊"},
@@ -42,9 +43,9 @@ class SidebarWidget(QWidget):
     # 导航切换信号
     navigation_changed = pyqtSignal(str)  # 发送nav_id
 
-    # 尺寸常量
-    EXPANDED_WIDTH = 180
-    COLLAPSED_WIDTH = 60
+    # 尺寸常量 - 使用设计系统规范
+    EXPANDED_WIDTH = tokens.sidebar["width_expanded"]
+    COLLAPSED_WIDTH = tokens.sidebar["width_collapsed"]
     LOGO_HEIGHT = 90
 
     def __init__(self, theme: str = "dark", parent=None):
@@ -153,15 +154,15 @@ class SidebarWidget(QWidget):
         # 中文名
         self.cn_name = QLabel("赛博玄数")
         cn_font = QFont()
-        cn_font.setPointSize(14)
-        cn_font.setWeight(QFont.Weight.Bold)
+        cn_font.setPointSize(font_size.lg)
+        cn_font.setWeight(font_weight.bold)
         self.cn_name.setFont(cn_font)
         name_layout.addWidget(self.cn_name)
 
         # 英文名
         self.en_name = QLabel("Cyber Mantic")
         en_font = QFont()
-        en_font.setPointSize(9)
+        en_font.setPointSize(font_size.xs)
         self.en_name.setFont(en_font)
         name_layout.addWidget(self.en_name)
 
@@ -241,10 +242,10 @@ class SidebarWidget(QWidget):
             QPushButton {{
                 background-color: {toggle_bg};
                 border: none;
-                border-radius: 6px;
+                border-radius: {border_radius.sm}px;
                 color: {text_secondary};
-                font-size: 16px;
-                font-weight: bold;
+                font-size: {font_size.md}px;
+                font-weight: {font_weight.bold};
             }}
             QPushButton:hover {{
                 background-color: {toggle_hover};
