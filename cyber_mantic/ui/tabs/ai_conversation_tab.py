@@ -36,6 +36,7 @@ from services.conversation_service import ConversationService, ConversationStage
 from api.manager import APIManager
 from utils.logger import get_logger
 from utils.warning_manager import get_warning_manager, WarningLevel
+from utils.theme_manager import ThemeManager  # V2: 主题管理
 from ui.dialogs.warning_dialogs import show_warning_dialog, ForcedCoolingDialog
 
 
@@ -143,10 +144,56 @@ class AIConversationTab(QWidget):
         self.conversation_service = ConversationService(api_manager)
         self.logger = get_logger(__name__)
         self.worker = None  # 当前工作线程
+
+        # V2: 获取主题管理器和当前主题
+        self.theme_manager = ThemeManager()
+        self.current_theme = self._get_current_theme()
+
         self._setup_ui()
         # 安装事件过滤器以支持回车发送
         self.input_text.installEventFilter(self)
         self._start_new_conversation()
+
+    def _get_current_theme(self) -> str:
+        """V2: 获取当前主题（light/dark）"""
+        try:
+            return self.theme_manager.get_current_theme()
+        except Exception:
+            return "light"  # 默认浅色主题
+
+    def _apply_input_style(self):
+        """V2: 根据主题应用输入框样式"""
+        is_dark = self.current_theme == "dark"
+
+        if is_dark:
+            # 深色主题
+            bg_color = "#2D2D3D"
+            bg_focus = "#33334D"
+            text_color = "#F1F5F9"
+            border_color = "rgba(99, 102, 241, 0.3)"
+            border_focus = "#6366F1"
+        else:
+            # 浅色主题
+            bg_color = "#FFFFFF"
+            bg_focus = "#F8FAFC"
+            text_color = "#1E293B"
+            border_color = "#CBD5E1"
+            border_focus = "#6366F1"
+
+        self.input_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 12px;
+                padding: 12px 16px;
+                color: {text_color};
+                font-size: 14px;
+            }}
+            QTextEdit:focus {{
+                border-color: {border_focus};
+                background-color: {bg_focus};
+            }}
+        """)
 
     def _setup_ui(self):
         """设置UI"""
@@ -336,20 +383,8 @@ class AIConversationTab(QWidget):
         self.input_text.setPlaceholderText("输入您想咨询的问题... (Enter发送，Shift+Enter换行)")
         self.input_text.setMinimumHeight(50)
         self.input_text.setMaximumHeight(120)
-        self.input_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #2D2D3D;
-                border: 1px solid rgba(99, 102, 241, 0.3);
-                border-radius: 12px;
-                padding: 12px 16px;
-                color: #F1F5F9;
-                font-size: 14px;
-            }
-            QTextEdit:focus {
-                border-color: #6366F1;
-                background-color: #33334D;
-            }
-        """)
+        # V2: 根据主题设置输入框样式
+        self._apply_input_style()
         input_row.addWidget(self.input_text)
 
         self.send_btn = QPushButton("发送")
@@ -412,7 +447,8 @@ class AIConversationTab(QWidget):
         layout.addWidget(title_label)
 
         # ===== V2: 快速结论卡片面板（顶部，替代原小六壬卡片） =====
-        self.quick_result_panel = QuickResultPanel(theme="dark")
+        # V2: 使用当前主题
+        self.quick_result_panel = QuickResultPanel(theme=self.current_theme)
         self.quick_result_panel.theory_clicked.connect(self._show_theory_detail)
         layout.addWidget(self.quick_result_panel)
 
@@ -846,7 +882,8 @@ class AIConversationTab(QWidget):
                     item.widget().deleteLater()
 
             # 创建新的验证面板
-            self.verification_panel = VerificationPanel(questions, theme="dark")
+            # V2: 使用当前主题
+            self.verification_panel = VerificationPanel(questions, theme=self.current_theme)
             self.verification_panel.all_answered.connect(self._on_verification_completed)
             self.verification_panel.question_answered.connect(self._on_question_answered)
             self.verification_container_layout.addWidget(self.verification_panel)

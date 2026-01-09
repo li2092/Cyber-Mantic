@@ -48,107 +48,108 @@ class QuickResultCard(QFrame):
     clicked = pyqtSignal(str)  # 发送theory_name
 
     # V2: 五级吉凶颜色配置 - 深色主题
+    # 重构：移除圆形图标，改为吉凶等级文字，背景色更鲜明
     STATUS_STYLES_DARK = {
         CardStatus.WAITING: {
             "border": "#4B5563",
             "bg": "#1F2937",
-            "icon": "⬚",
+            "label": "",  # 无标签
             "text": "#9CA3AF"
         },
         CardStatus.RUNNING: {
             "border": "#3B82F6",
             "bg": "#1E3A5F",
-            "icon": "⏳",
+            "label": "⏳",  # 进行中动画
             "text": "#93C5FD"
         },
-        # V2: 五级吉凶颜色
+        # V2: 五级吉凶 - 鲜明背景色
         CardStatus.COMPLETED_DAJI: {          # 大吉 - 喜庆红
-            "border": "#DC2626",
-            "bg": "#7F1D1D",
-            "icon": "🔴",
-            "text": "#FCA5A5"
+            "border": "#EF4444",
+            "bg": "#991B1B",  # 更深的红色背景
+            "label": "大吉",
+            "text": "#FECACA"
         },
         CardStatus.COMPLETED_XIAOJI: {        # 小吉 - 喜庆橙
-            "border": "#EA580C",
-            "bg": "#7C2D12",
-            "icon": "🟠",
-            "text": "#FDBA74"
+            "border": "#F97316",
+            "bg": "#9A3412",  # 更深的橙色背景
+            "label": "小吉",
+            "text": "#FED7AA"
         },
-        CardStatus.COMPLETED_PING: {          # 平 - 浅灰
+        CardStatus.COMPLETED_PING: {          # 平 - 中性灰
             "border": "#9CA3AF",
             "bg": "#374151",
-            "icon": "⚪",
-            "text": "#D1D5DB"
+            "label": "平",
+            "text": "#E5E7EB"
         },
-        CardStatus.COMPLETED_XIAOXIONG: {     # 小凶 - 深绿
-            "border": "#166534",
+        CardStatus.COMPLETED_XIAOXIONG: {     # 小凶 - 暗绿
+            "border": "#22C55E",
             "bg": "#14532D",
-            "icon": "🟢",
-            "text": "#86EFAC"
+            "label": "小凶",
+            "text": "#BBF7D0"
         },
         CardStatus.COMPLETED_DAXIONG: {       # 大凶 - 深黑
-            "border": "#1F2937",
+            "border": "#4B5563",
             "bg": "#111827",
-            "icon": "⚫",
-            "text": "#6B7280"
+            "label": "大凶",
+            "text": "#9CA3AF"
         },
         CardStatus.ERROR: {
             "border": "#6B7280",
             "bg": "#1F2937",
-            "icon": "❌",
+            "label": "❌",
             "text": "#9CA3AF"
         },
     }
 
-    # V2: 五级吉凶颜色配置 - 浅色主题
+    # V2: 五级吉凶颜色配置 - 浅色主题（鲜明背景色）
     STATUS_STYLES_LIGHT = {
         CardStatus.WAITING: {
-            "border": "#D1D5DB",
-            "bg": "#F3F4F6",
-            "icon": "⬚",
-            "text": "#4B5563"
+            "border": "#E5E7EB",
+            "bg": "#FFFFFF",  # 纯白背景
+            "label": "",
+            "text": "#6B7280"
         },
         CardStatus.RUNNING: {
             "border": "#3B82F6",
-            "bg": "#EFF6FF",
-            "icon": "⏳",
+            "bg": "#DBEAFE",  # 浅蓝背景
+            "label": "⏳",
             "text": "#1D4ED8"
         },
-        # V2: 五级吉凶颜色
+        # V2: 五级吉凶 - 鲜明背景色
         CardStatus.COMPLETED_DAJI: {          # 大吉 - 喜庆红
-            "border": "#DC2626",
-            "bg": "#FEF2F2",
-            "icon": "🔴",
+            "border": "#EF4444",
+            "bg": "#FEE2E2",  # 浅红背景
+            "label": "大吉",
             "text": "#B91C1C"
         },
         CardStatus.COMPLETED_XIAOJI: {        # 小吉 - 喜庆橙
-            "border": "#EA580C",
-            "bg": "#FFF7ED",
-            "icon": "🟠",
+            "border": "#F97316",
+            "bg": "#FFEDD5",  # 浅橙背景
+            "label": "小吉",
             "text": "#C2410C"
         },
-        CardStatus.COMPLETED_PING: {          # 平 - 浅灰
+        CardStatus.COMPLETED_PING: {          # 平 - 中性灰
             "border": "#9CA3AF",
-            "bg": "#F9FAFB",
-            "icon": "⚪",
-            "text": "#4B5563"
+            "bg": "#F3F4F6",  # 浅灰背景
+            "label": "平",
+            "text": "#374151"
         },
-        CardStatus.COMPLETED_XIAOXIONG: {     # 小凶 - 深绿
-            "border": "#166534",
-            "bg": "#F0FDF4",
-            "icon": "🟢",
+        CardStatus.COMPLETED_XIAOXIONG: {     # 小凶 - 浅绿
+            "border": "#22C55E",
+            "bg": "#DCFCE7",  # 浅绿背景
+            "label": "小凶",
             "text": "#166534"
         },
-        CardStatus.COMPLETED_DAXIONG: {       # 大凶 - 深黑
-            "border": "#1F2937",
-            "bg": "#F3F4F6",
-            "icon": "⚫",
-            "text": "#111827"
+        CardStatus.COMPLETED_DAXIONG: {       # 大凶 - 灰黑
+            "border": "#4B5563",
+            "bg": "#E5E7EB",  # 深灰背景
+            "label": "大凶",
+            "text": "#1F2937"
         },
         CardStatus.ERROR: {
             "border": "#9CA3AF",
             "bg": "#F3F4F6",
-            "icon": "❌",
+            "label": "❌",
             "text": "#4B5563"
         },
     }
@@ -222,7 +223,7 @@ class QuickResultCard(QFrame):
         self.setLayout(layout)
 
     def _apply_style(self):
-        """应用当前状态的样式"""
+        """应用当前状态的样式（V2重构：整体底色变化）"""
         styles = self.get_status_styles(self.theme)
         style = styles.get(self.status, styles[CardStatus.WAITING])
 
@@ -238,8 +239,10 @@ class QuickResultCard(QFrame):
             }}
         """)
 
-        self.icon_label.setText(style['icon'])
-        self.icon_label.setStyleSheet(f"color: {style['text']}; background: transparent;")
+        # V2: 使用 label 替代 icon，显示吉凶等级文字
+        label_text = style.get('label', '')
+        self.icon_label.setText(label_text)
+        self.icon_label.setStyleSheet(f"color: {style['text']}; background: transparent; font-weight: bold;")
         self.name_label.setStyleSheet(f"color: {style['text']}; background: transparent;")
         self.summary_label.setStyleSheet(f"color: {style['text']}; opacity: 0.8; background: transparent;")
 
@@ -343,7 +346,18 @@ class QuickResultCard(QFrame):
         super().mousePressEvent(event)
 
     def toggle_expand(self):
-        """V2新增：切换展开/收起状态"""
+        """V2新增：切换展开/收起状态（仅已完成的理论可展开）"""
+        # V2: 只有已完成分析的理论才能展开
+        completed_statuses = [
+            CardStatus.COMPLETED_DAJI,
+            CardStatus.COMPLETED_XIAOJI,
+            CardStatus.COMPLETED_PING,
+            CardStatus.COMPLETED_XIAOXIONG,
+            CardStatus.COMPLETED_DAXIONG,
+        ]
+        if self.status not in completed_statuses:
+            return  # 未分析完成的理论不能展开
+
         self._expanded = not getattr(self, '_expanded', False)
 
         if self._expanded:
