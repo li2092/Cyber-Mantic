@@ -29,6 +29,7 @@ import json
 from ui.widgets.chat_widget import ChatWidget
 from ui.widgets.progress_widget import ProgressWidget
 from ui.widgets.quick_result_card import QuickResultPanel
+from ui.widgets.verification_widget import VerificationPanel
 from services.conversation_service import ConversationService, ConversationStage
 from api.manager import APIManager
 from utils.logger import get_logger
@@ -497,6 +498,17 @@ class AIConversationTab(QWidget):
         flowguard_group.setLayout(flowguard_layout)
         layout.addWidget(flowguard_group)
 
+        # ===== V2: 回溯验证组件容器（初始隐藏） =====
+        self.verification_group = QGroupBox("🔍 回溯验证")
+        self.verification_layout = QVBoxLayout()
+        self.verification_container = QWidget()
+        self.verification_container_layout = QVBoxLayout(self.verification_container)
+        self.verification_container_layout.setContentsMargins(0, 0, 0, 0)
+        self.verification_layout.addWidget(self.verification_container)
+        self.verification_group.setLayout(self.verification_layout)
+        self.verification_group.hide()  # 初始隐藏
+        layout.addWidget(self.verification_group)
+
         # 当前阶段（简化为一行状态）
         stage_group = QGroupBox("当前阶段")
         stage_layout = QVBoxLayout()
@@ -871,6 +883,9 @@ class AIConversationTab(QWidget):
         # V2: 更新FlowGuard信息收集进度
         self._update_flowguard_progress()
 
+        # V2: 更新回溯验证面板
+        self._update_verification_panel()
+
     def _on_save_clicked(self):
         """保存对话"""
         conversation_data = self.conversation_service.save_conversation()
@@ -1036,6 +1051,61 @@ class AIConversationTab(QWidget):
         except Exception as e:
             self.logger.warning(f"FlowGuard进度更新失败: {e}")
             self.flowguard_text.setMarkdown("_进度更新失败_")
+
+    def _update_verification_panel(self):
+        """V2: 更新回溯验证面板"""
+        context = self.conversation_service.context
+
+        # 只在阶段4显示验证组件
+        if context.stage == ConversationStage.STAGE4_VERIFICATION:
+            questions = context.verification_questions
+            if questions and len(questions) > 0:
+                self._show_verification_questions(questions)
+            else:
+                self.verification_group.hide()
+        else:
+            self.verification_group.hide()
+
+    def _show_verification_questions(self, questions):
+        """V2: 显示验证问题"""
+        try:
+            # 清空现有内容
+            while self.verification_container_layout.count():
+                item = self.verification_container_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+
+            # 创建新的验证面板
+            self.verification_panel = VerificationPanel(questions, theme="dark")
+            self.verification_panel.all_answered.connect(self._on_verification_completed)
+            self.verification_panel.question_answered.connect(self._on_question_answered)
+            self.verification_container_layout.addWidget(self.verification_panel)
+
+            # 显示验证组件
+            self.verification_group.show()
+            self.logger.info(f"显示了 {len(questions)} 个验证问题")
+
+        except Exception as e:
+            self.logger.error(f"显示验证问题失败: {e}")
+            self.verification_group.hide()
+
+    def _on_question_answered(self, index: int, answer: str, is_verified: bool):
+        """V2: 单个验证问题被回答"""
+        self.logger.info(f"问题 {index + 1} 已回答: {answer}, 验证: {'通过' if is_verified else '未通过'}")
+
+    def _on_verification_completed(self, result):
+        """V2: 所有验证问题回答完成"""
+        self.logger.info(f"验证完成，置信度调整: {result.confidence_adjustment}")
+
+        # 将验证结果存储到context
+        self.conversation_service.context.verification_feedback.append({
+            "type": "panel_verification",
+            "summary": result.get_summary(),
+            "confidence_adjustment": result.confidence_adjustment
+        })
+
+        # 更新验证组状态
+        self.verification_group.setTitle("🔍 回溯验证 ✅")
 
     def _stop_current_worker(self):
         """停止当前正在运行的工作线程"""

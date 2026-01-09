@@ -48,6 +48,9 @@ from core.flow_guard import get_flow_guard, InputStatus
 # V2: 提示词模板加载器
 from prompts.loader import load_prompt, prompt_exists
 
+# V2: 动态验证问题生成
+from core.dynamic_verification import DynamicVerificationGenerator, VerificationResult as DynVerificationResult
+
 
 # 导出公共接口（向后兼容）
 __all__ = [
@@ -111,6 +114,9 @@ class ConversationService:
 
         # V2: 初始化FlowGuard流程监管（注入API管理器）
         self.flow_guard = get_flow_guard(self.api_manager)
+
+        # V2: 初始化动态验证问题生成器
+        self.verification_generator = DynamicVerificationGenerator(self.api_manager)
 
     # ==================== 公共API ====================
 
@@ -216,6 +222,17 @@ class ConversationService:
         if progress_callback:
             progress_callback("阶段1", "正在解析您的问题和随机数字...", 10)
 
+        # V2: FlowGuard输入验证
+        validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE1_ICEBREAK")
+        if validation_result.status == InputStatus.VALID:
+            # 使用FlowGuard提取的数据
+            self.context.question_category = validation_result.extracted_data.get("question_category")
+            self.context.random_numbers = validation_result.extracted_data.get("random_numbers", [])
+            self.context.question_description = validation_result.extracted_data.get("question_description", "")
+        else:
+            # FlowGuard验证失败，回退到NLP解析
+            self.logger.debug(f"FlowGuard验证: {validation_result.status}, 使用NLP解析")
+
         parsed_info = await self.nlp_parser.parse_icebreak_input(user_message)
         if not parsed_info or "error" in parsed_info:
             return self._retry_msg("stage1")
@@ -268,6 +285,11 @@ class ConversationService:
 
         if progress_callback:
             progress_callback("阶段2", "正在解析您的出生信息...", 60)
+
+        # V2: FlowGuard输入验证
+        validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE2_BASIC_INFO")
+        if validation_result.status == InputStatus.VALID:
+            self.logger.info(f"FlowGuard验证通过，提取数据: {validation_result.extracted_data}")
 
         birth_info = await self.nlp_parser.parse_birth_info(user_message)
         if not birth_info or "error" in birth_info:
@@ -338,6 +360,13 @@ class ConversationService:
                 if self.context.birth_info:
                     self.context.birth_info["hour"] = inferred_hour
 
+        # V2: 生成回溯验证问题
+        if progress_callback:
+            progress_callback("验证问题", "正在生成回溯验证问题...", 82)
+
+        verification_questions = await self._generate_verification_questions()
+        self.context.verification_questions = verification_questions
+
         self.context.stage = ConversationStage.STAGE4_VERIFICATION
 
         hour_info = ""
@@ -346,14 +375,18 @@ class ConversationService:
             hour_name = hour_names.get(self.context.inferred_hour, "未知")
             hour_info = f"\n\n🔮 **推断时辰**：{hour_name}时（{self.context.inferred_hour}点）"
 
+        # V2: 构建包含验证问题的响应
+        questions_md = self._format_verification_questions(verification_questions)
+
         # V2: 使用模板加载阶段3完成消息
         try:
-            return load_prompt("conversation/stage3_complete.md", {
+            base_response = load_prompt("conversation/stage3_complete.md", {
                 "hour_info": hour_info,
                 "category": self.context.question_category
             })
+            return base_response + "\n" + questions_md
         except FileNotFoundError:
-            return f"✅ 补充信息已收集{hour_info}\n\n请简单回答：过去3年在{self.context.question_category}领域有无变化？"
+            return f"✅ 补充信息已收集{hour_info}\n\n{questions_md}"
 
     async def _handle_stage4(self, user_message: str, progress_callback, theory_callback=None) -> str:
         """阶段4：结果验证"""
@@ -440,6 +473,67 @@ class ConversationService:
                 stats_manager.update_session_stage(self.context.session_id, stage)
             except Exception as e:
                 self.logger.warning(f"更新会话阶段失败: {e}")
+
+    async def _generate_verification_questions(self):
+        """V2: 生成回溯验证问题"""
+        try:
+            # 准备用户信息
+            user_info = {
+                "question_type": self.context.question_category,
+                "age": self._calculate_age(),
+                "gender": self.context.gender or "未知"
+            }
+
+            # 准备分析结果（已有的理论分析）
+            analysis_results = {}
+            if self.context.xiaoliu_result:
+                analysis_results["小六壬"] = self.context.xiaoliu_result
+
+            # 生成3个验证问题
+            questions = await self.verification_generator.generate_questions(
+                user_info=user_info,
+                analysis_results=analysis_results,
+                question_count=3
+            )
+
+            self.logger.info(f"生成了 {len(questions)} 个回溯验证问题")
+            return questions
+
+        except Exception as e:
+            self.logger.error(f"生成验证问题失败: {e}")
+            return []
+
+    def _format_verification_questions(self, questions) -> str:
+        """V2: 格式化验证问题为Markdown"""
+        if not questions:
+            # 没有生成问题时使用默认问题
+            return f"""## ⏪ 回溯验证
+
+请简单回答以下问题，帮助我们验证分析准确度：
+
+1. 过去3年中，在**{self.context.question_category}**领域是否有重大变化？
+2. 您最近一次重要决策是在什么时候？
+3. 过去一年的发展是否符合您的预期？
+
+请简单描述："""
+
+        # 格式化问题列表
+        lines = ["## ⏪ 回溯验证\n", "请简单回答以下问题，帮助我们验证分析准确度：\n"]
+
+        for i, q in enumerate(questions, 1):
+            lines.append(f"{i}. {q.question}")
+
+        lines.append("\n请简单回答（可以一起回答，也可以逐个回答）：")
+
+        return "\n".join(lines)
+
+    def _calculate_age(self) -> int:
+        """计算用户年龄"""
+        if self.context.birth_info and self.context.birth_info.get("year"):
+            birth_year = self.context.birth_info["year"]
+            current_year = datetime.now().year
+            return current_year - birth_year
+        return 0
 
     def _calculate_xiaoliu(self) -> Dict[str, Any]:
         """计算小六壬"""

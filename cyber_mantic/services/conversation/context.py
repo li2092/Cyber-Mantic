@@ -69,6 +69,7 @@ class ConversationContext:
         self.retrospective_events: List[Dict[str, Any]] = []  # 回溯的关键事件
         self.verification_feedback: List[Dict[str, Any]] = []  # 用户确认反馈
         self.theory_confidence_adjustment: Dict[str, float] = {}  # 理论置信度调整
+        self.verification_questions: List[Any] = []  # V2: 动态生成的验证问题
 
         # 分析结果
         self.selected_theories: List[str] = []  # 选定的理论列表
@@ -117,6 +118,7 @@ class ConversationContext:
             "retrospective_events": self.retrospective_events,
             "verification_feedback": self.verification_feedback,
             "theory_confidence_adjustment": self.theory_confidence_adjustment,
+            "verification_questions": [q.to_dict() if hasattr(q, 'to_dict') else q for q in self.verification_questions],
             # 分析结果
             "selected_theories": self.selected_theories,
             "theory_results": self.theory_results,
@@ -174,6 +176,7 @@ class ConversationContext:
         context.retrospective_events = data.get("retrospective_events", [])
         context.verification_feedback = data.get("verification_feedback", [])
         context.theory_confidence_adjustment = data.get("theory_confidence_adjustment", {})
+        context.verification_questions = data.get("verification_questions", [])
 
         # 恢复分析结果
         context.selected_theories = data.get("selected_theories", [])
