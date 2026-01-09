@@ -14,10 +14,14 @@
 
 ## 二、当前状态
 
-### ✅ 最新进展（2026-01-09 自动化测试）
+### ✅ 最新进展（2026-01-09 模板内容修复）
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
+| **welcome.md内容修复** | ✅ 完成 | 与设计文档 `wendao_flow_design.md` 保持一致 |
+| **stage1_complete.md修复** | ✅ 完成 | 追问"具体描述+汉字"而非"出生信息" |
+| **stage2_complete.md修复** | ✅ 完成 | 追问"出生信息+性别+MBTI" |
+| **stage3_collect_complete.md新增** | ✅ 完成 | 阶段3信息收集完成后的模板 |
 | 自动化测试框架 | ✅ 完成 | 29个测试用例全部通过 |
 | FlowGuard AI优先验证 | ✅ 完成 | AI提取优先，代码后备 |
 | 颜色/方位提取优化 | ✅ 完成 | 复合词优先匹配（粉红→粉，西北→西北） |
@@ -163,15 +167,16 @@ cyber_mantic/
 
 ```
 prompts/conversation/
-├── welcome.md           ✅ 存在且被使用
-├── greeting.md          ✅ 存在且被使用
-├── stage1_complete.md   ✅ 存在且被使用
-├── stage2_complete.md   ✅ 存在且被使用
-├── stage3_complete.md   ✅ 存在且被使用
-├── supplement_prompt.md ✅ 存在
-├── verification_prompt.md ✅ 存在
-├── clarification.md     ✅ 存在
-└── stage*_response.md   ✅ 7个响应模板已创建
+├── welcome.md               ✅ 已更新（与设计文档一致）
+├── greeting.md              ✅ 存在且被使用
+├── stage1_complete.md       ✅ 已更新（追问具体描述+汉字）
+├── stage2_complete.md       ✅ 已更新（追问出生信息）
+├── stage3_complete.md       ✅ 存在（旧版补充信息用）
+├── stage3_collect_complete.md ✅ 新增（阶段3收集完成）
+├── supplement_prompt.md     ✅ 存在
+├── verification_prompt.md   ✅ 存在
+├── clarification.md         ✅ 存在
+└── stage*_response.md       ✅ 7个响应模板已创建
 ```
 
 ---
@@ -203,6 +208,15 @@ prompts/conversation/
 6. **Stage1 xiaoliu_result为None (2026-01-09)**
    - 问题：FlowGuard验证成功后仍调用NLP解析，NLP返回error导致提前返回
    - 修复：FlowGuard成功时跳过NLP解析
+
+7. **模板内容与设计文档不匹配 (2026-01-09)**
+   - 问题：`welcome.md` 内容是旧版长格式，与 `wendao_flow_design.md` 第58-67行规格不符
+   - 原因：模板文件内容从未按照设计文档更新
+   - 修复：
+     - `welcome.md` → 简洁版（"问道模式" + 类别 + 3个数字）
+     - `stage1_complete.md` → 追问"具体描述+汉字"（原错误追问出生信息）
+     - `stage2_complete.md` → 追问"出生信息+性别+MBTI"
+     - 新增 `stage3_collect_complete.md`
 
 ### 待解决
 
