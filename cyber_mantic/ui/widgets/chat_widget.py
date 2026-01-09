@@ -64,7 +64,7 @@ def markdown_to_styled_html(content: str, theme: str = "dark") -> str:
     is_dark = theme == "dark"
     code_block_bg = "#1E1E2E" if is_dark else "#F1F5F9"
     code_block_text = "#E2E8F0" if is_dark else "#334155"
-    h1_color = "#DDD6FE" if is_dark else "#6D28D9"
+    h1_color = "#DDD6FE" if is_dark else "#5B21B6"  # 加深浅色主题H1颜色以提高对比度
     h2_color = "#C4B5FD" if is_dark else "#7C3AED"
     h3_color = "#A78BFA" if is_dark else "#8B5CF6"
     quote_border = "#6366F1"

@@ -86,7 +86,7 @@ class QuickResultCard(QFrame):
             "border": "#D1D5DB",
             "bg": "#F3F4F6",
             "icon": "⬚",
-            "text": "#6B7280"
+            "text": "#4B5563"  # 加深文字颜色以提高对比度
         },
         CardStatus.RUNNING: {
             "border": "#3B82F6",
@@ -110,13 +110,13 @@ class QuickResultCard(QFrame):
             "border": "#F59E0B",
             "bg": "#FFFBEB",
             "icon": "➖",
-            "text": "#B45309"
+            "text": "#92400E"  # 加深文字颜色以提高对比度
         },
         CardStatus.ERROR: {
             "border": "#9CA3AF",
             "bg": "#F3F4F6",
             "icon": "❌",
-            "text": "#6B7280"
+            "text": "#4B5563"  # 加深文字颜色以提高对比度
         },
     }
 
