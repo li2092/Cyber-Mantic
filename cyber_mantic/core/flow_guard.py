@@ -671,7 +671,7 @@ class FlowGuard:
         self.retry_count[error_type] = self.retry_count.get(error_type, 0) + 1
 
         if self.retry_count[error_type] >= self.max_retries:
-            base_message += "\n\n如果持续遇到问题，您可以输入"帮助"查看详细指南。"
+            base_message += "\n\n如果持续遇到问题，您可以输入'帮助'查看详细指南。"
 
         return base_message
 
