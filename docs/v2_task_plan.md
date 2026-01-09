@@ -335,6 +335,10 @@ SUPPORTED_APIS = {
 | 5.5 NLP解析扩展 | 识别known_range状态 | 1天 | 5.1 | ✅ |
 | 5.6 真太阳时校正 | 推演模块计算逻辑 | 1.5天 | 无 | ✅ |
 | 5.7 推演UI调整 | 经度输入+提示 | 0.5天 | 5.6 | ⏳ 待实现 |
+| 5.8 FlowGuard核心 | 流程监管模块设计 | 1天 | 无 | ✅ |
+| 5.9 验证器实现 | 各阶段输入验证器 | 0.5天 | 5.8 | ✅ |
+| 5.10 进度展示 | 类todo进度UI | 0.5天 | 5.8 | ✅ |
+| 5.11 集成到问道 | ConversationService集成 | 1天 | 5.8 | ⏳ 待集成 |
 
 ### 阶段六：测试优化（1周）
 
@@ -389,6 +393,7 @@ cyber_mantic/core/
 ├── shichen_handler.py          # 时辰处理器 ✅
 ├── dynamic_verification.py     # 动态验证生成 ✅
 ├── theory_selector.py          # 理论选择器（含MBTI矩阵）✅
+├── flow_guard.py               # 流程监管模块 ✅ [新增]
 └── __init__.py                 # 核心模块导出 ✅
 
 cyber_mantic/api/
