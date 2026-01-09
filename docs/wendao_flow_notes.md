@@ -213,9 +213,35 @@ self.liuyao_numbers: List[int] = []           # 六爻自动数字
 
 | 任务 | 状态 |
 |------|------|
-| ai_conversation_tab.py 删除旧组件 | 待处理 |
+| ai_conversation_tab.py 删除旧组件 | ✅ 已完成 |
 | 提示词模板文件创建 | 待处理 |
-| 三文件系统更新 | 进行中 |
+| 三文件系统更新 | ✅ 已完成 |
+
+### ai_conversation_tab.py 修改记录 (2026-01-09)
+
+**删除的组件**:
+- `xiaoliu_group` (小六壬快断卡片)
+- `bazi_group` (八字命盘组)
+- `analysis_group` (简要分析组)
+- `status_group` (分析状态组)
+- `theory_detail_text` (理论详情显示区)
+
+**更新的阶段枚举**:
+```python
+# 旧 → 新
+STAGE2_BASIC_INFO → STAGE2_DEEPEN
+STAGE3_SUPPLEMENT → STAGE3_COLLECT
+STAGE4_VERIFICATION → STAGE4_VERIFY
+STAGE5_FINAL_REPORT → STAGE5_REPORT
+```
+
+**简化的方法**:
+- `_update_right_panel()`: 删除旧组件引用，保留阶段显示、FlowGuard进度、验证面板
+- `_show_theory_detail()`: 简化为日志记录（详情通过卡片展开显示）
+- `_start_new_conversation()`: 移除旧组件重置代码
+
+**删除的方法**:
+- `_update_xiaoliu_card()`: 小六壬已整合到 quick_result_panel
 
 ---
 
