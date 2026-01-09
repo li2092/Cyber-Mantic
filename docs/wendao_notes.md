@@ -361,7 +361,33 @@ NLPParser.parse_verification_feedback()
 
 ## 七、开发日志
 
-### 2026-01-09
+### 2026-01-09（下午会话）
+
+**模板内容修复**：
+- 发现 `welcome.md` 内容与设计文档 `wendao_flow_design.md` 不匹配
+- 原因：模板文件从未按照设计文档更新
+- 修复：
+  - `welcome.md` → 简洁版（"问道模式" + 类别 + 3个数字）
+  - `stage1_complete.md` → 追问"具体描述+汉字"（原错误追问出生信息）
+  - `stage2_complete.md` → 追问"出生信息+性别+MBTI"
+  - 新增 `stage3_collect_complete.md`
+
+**UI布局修复**：
+- 进度条(ProgressWidget 0-100%)移到右侧面板最顶端显示
+- 原来在底部，用户反馈每次都要滚动才能看到
+
+**用户信息编辑功能（方案B：对话指令）**：
+- FlowGuard 新增 `detect_modification_intent()` 检测修改意图
+- FlowGuard 新增 `process_modification()` 处理修改请求
+- 支持修改：出生日期/性别/MBTI/咨询类别/测字汉字
+- 用法示例："修改出生日期为1990年5月"
+
+**P2待优化确认**：
+- NLP解析Prompt外部化 → ✅ 已完成（使用load_prompt）
+- 理论选择数量硬编码 → ❌ 待修复
+- 回溯校验三个问题 → 已调整prompt让AI生成
+
+### 2026-01-09（上午会话）
 
 - 发现严重问题：V2功能前端未正确集成
 - 创建 `v2_frontend_gap_analysis.md` 详细分析
