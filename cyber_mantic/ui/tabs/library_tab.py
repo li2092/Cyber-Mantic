@@ -181,13 +181,25 @@ class AIAssistantWorker(QThread):
 
     def run(self):
         """执行AI分析"""
+        import asyncio
         try:
-            # 使用API进行分析
-            response = self.api_manager.analyze(self.prompt)
-            if response:
-                self.finished.emit(response)
-            else:
-                self.error.emit("AI返回结果为空")
+            # 创建新的事件循环
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                # 使用API进行分析
+                response = loop.run_until_complete(
+                    self.api_manager.call_api(
+                        task_type="library_assistant",
+                        prompt=self.prompt
+                    )
+                )
+                if response:
+                    self.finished.emit(response)
+                else:
+                    self.error.emit("AI返回结果为空")
+            finally:
+                loop.close()
         except Exception as e:
             self.error.emit(str(e))
 

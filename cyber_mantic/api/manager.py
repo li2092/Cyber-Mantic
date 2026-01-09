@@ -42,8 +42,14 @@ def calculate_retry_delay(attempt: int, initial_delay: float = INITIAL_RETRY_DEL
 class APIManager:
     """API管理器，支持多提供商故障转移和双模型验证"""
 
-    # API优先级顺序
-    API_PRIORITY = ["claude", "gemini", "deepseek", "kimi"]
+    # 默认API优先级顺序
+    DEFAULT_API_PRIORITY = ["claude", "gemini", "deepseek", "kimi"]
+
+    # 内置API的默认base_url
+    BUILTIN_BASE_URLS = {
+        "deepseek": "https://api.deepseek.com",
+        "kimi": "https://api.moonshot.cn/v1",
+    }
 
     # API使用场景映射
     API_USAGE_MAP = {
@@ -62,25 +68,34 @@ class APIManager:
         初始化API管理器
 
         Args:
-            config: 配置字典，包含API密钥等信息
+            config: 配置字典，包含API密钥等信息 (扁平格式)
+                   例如: claude_api_key, claude_model, openrouter_api_key 等
         """
         self.logger = get_logger()
+        self.config = config
 
-        # API密钥配置
-        self.api_keys = {
-            "claude": config.get("claude_api_key") or os.getenv("CLAUDE_API_KEY"),
-            "gemini": config.get("gemini_api_key") or os.getenv("GEMINI_API_KEY"),
-            "deepseek": config.get("deepseek_api_key") or os.getenv("DEEPSEEK_API_KEY"),
-            "kimi": config.get("kimi_api_key") or os.getenv("KIMI_API_KEY")
-        }
+        # 从配置动态发现所有已配置的API
+        self.api_keys = {}
+        self.models = {}
+        self.base_urls = {}
 
-        # 模型配置
-        self.models = {
-            "claude": config.get("claude_model", "claude-sonnet-4-20250514"),
-            "gemini": config.get("gemini_model", "gemini-2.0-flash-exp"),
-            "deepseek": config.get("deepseek_model", "deepseek-reasoner"),
-            "kimi": config.get("kimi_model", "kimi-k2-turbo-preview")
-        }
+        # 1. 先加载内置的API (claude, gemini, deepseek, kimi)
+        builtin_apis = ["claude", "gemini", "deepseek", "kimi"]
+        for api in builtin_apis:
+            api_key = config.get(f"{api}_api_key") or os.getenv(f"{api.upper()}_API_KEY")
+            if api_key:
+                self.api_keys[api] = api_key
+                self.models[api] = config.get(f"{api}_model", self._get_default_model(api))
+                self.base_urls[api] = config.get(f"{api}_base_url", self.BUILTIN_BASE_URLS.get(api, ""))
+
+        # 2. 动态发现自定义API (如 openrouter, together 等)
+        for key in config.keys():
+            if key.endswith("_api_key") and config.get(key):
+                provider = key.replace("_api_key", "")
+                if provider not in builtin_apis:
+                    self.api_keys[provider] = config.get(key)
+                    self.models[provider] = config.get(f"{provider}_model", "")
+                    self.base_urls[provider] = config.get(f"{provider}_base_url", "")
 
         # 其他配置
         self.timeout = config.get("timeout", 30)
@@ -88,13 +103,46 @@ class APIManager:
         self.enable_dual_verification = config.get("enable_dual_verification", True)
         self.primary_api = config.get("primary_api", "claude")
 
+        # API优先级：用户设置的优先API排第一，其余按默认顺序
+        self.API_PRIORITY = self._build_api_priority()
+
         # 检查可用的API
         self.available_apis = [api for api, key in self.api_keys.items() if key]
         self.logger.info(f"可用API: {', '.join(self.available_apis)}")
 
         # 记录模型配置
         for api in self.available_apis:
-            self.logger.info(f"{api} 使用模型: {self.models[api]}")
+            self.logger.info(f"{api} 使用模型: {self.models.get(api, 'N/A')}")
+
+    def _get_default_model(self, api: str) -> str:
+        """获取API的默认模型"""
+        defaults = {
+            "claude": "claude-sonnet-4-20250514",
+            "gemini": "gemini-2.0-flash-exp",
+            "deepseek": "deepseek-reasoner",
+            "kimi": "kimi-k2-turbo-preview",
+        }
+        return defaults.get(api, "")
+
+    def _build_api_priority(self) -> List[str]:
+        """构建API优先级列表"""
+        priority = []
+
+        # 用户设置的优先API排第一
+        if self.primary_api and self.primary_api in self.api_keys:
+            priority.append(self.primary_api)
+
+        # 然后是默认优先级中的API
+        for api in self.DEFAULT_API_PRIORITY:
+            if api not in priority and api in self.api_keys:
+                priority.append(api)
+
+        # 最后是其他自定义API
+        for api in self.api_keys.keys():
+            if api not in priority:
+                priority.append(api)
+
+        return priority
 
     def _get_endpoint_name(self, api_name: str) -> str:
         """
@@ -482,6 +530,9 @@ class APIManager:
             return await self._call_deepseek(prompt, **kwargs)
         elif api_name == "kimi":
             return await self._call_kimi(prompt, **kwargs)
+        elif api_name in self.api_keys:
+            # 自定义API - 使用OpenAI兼容格式调用
+            return await self._call_openai_compatible(api_name, prompt, **kwargs)
         else:
             raise ValueError(f"不支持的API: {api_name}")
 
@@ -669,6 +720,62 @@ class APIManager:
             None,
             lambda: client.chat.completions.create(
                 model=self.models["kimi"],
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens,
+                timeout=self.timeout
+            )
+        )
+
+        return response.choices[0].message.content
+
+    async def _call_openai_compatible(self, api_name: str, prompt: str, **kwargs) -> str:
+        """
+        调用OpenAI兼容格式的API（用于自定义provider如OpenRouter等）
+
+        Args:
+            api_name: API名称
+            prompt: 提示词
+            **kwargs: 其他参数
+
+        Returns:
+            响应文本
+        """
+        try:
+            import openai
+        except ImportError:
+            raise ImportError("需要安装openai库: pip install openai")
+
+        api_key = self.api_keys.get(api_name)
+        base_url = self.base_urls.get(api_name)
+        model = self.models.get(api_name)
+
+        if not api_key:
+            raise ValueError(f"API密钥未配置: {api_name}")
+        if not base_url:
+            raise ValueError(f"Base URL未配置: {api_name}")
+        if not model:
+            raise ValueError(f"模型未配置: {api_name}")
+
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url=base_url
+        )
+
+        system_prompt = kwargs.get("system", PromptTemplates.SYSTEM_PROMPT)
+        max_tokens = kwargs.get("max_tokens", 4096)
+
+        # 记录使用的模型
+        self.logger.info(f"{api_name} API调用 - 模型: {model}, Base URL: {base_url}")
+
+        # 异步调用（使用run_in_executor包装同步调用）
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.chat.completions.create(
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}

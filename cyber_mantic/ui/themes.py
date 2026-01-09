@@ -350,11 +350,28 @@ class ThemeSystem:
         }}
 
         QComboBox QAbstractItemView {{
-            background-color: {bg_secondary};
+            background-color: {surface};
             border: 1px solid {c['border']};
             border-radius: 8px;
-            selection-background-color: {c['primary']};
+            padding: 4px;
+            outline: none;
+        }}
+
+        QComboBox QAbstractItemView::item {{
+            background-color: {surface};
             color: {c['text_primary']};
+            padding: 8px 12px;
+            min-height: 24px;
+        }}
+
+        QComboBox QAbstractItemView::item:hover {{
+            background-color: {c['surface_hover']};
+            color: {c['text_primary']};
+        }}
+
+        QComboBox QAbstractItemView::item:selected {{
+            background-color: {c['primary']};
+            color: white;
         }}
 
         /* ==================== 标签页样式 ==================== */

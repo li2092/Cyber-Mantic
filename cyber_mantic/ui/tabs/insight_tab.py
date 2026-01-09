@@ -279,18 +279,20 @@ class InsightTab(QWidget):
         card.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
-                font-size: 14px;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 15px;
+                font-size: 16px;
+                border: 1px solid #E2E8F0;
+                border-radius: 12px;
+                margin-top: 14px;
+                padding-top: 20px;
                 background-color: #fff;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 15px;
-                padding: 0 10px;
-                color: #333;
+                padding: 4px 12px;
+                color: #1E293B;
+                background-color: #F1F5F9;
+                border-radius: 6px;
             }
         """)
         return card
@@ -320,11 +322,11 @@ class InsightTab(QWidget):
             item_layout.setSpacing(5)
 
             label_widget = QLabel(label)
-            label_widget.setStyleSheet("font-size: 13px; color: #666;")
+            label_widget.setStyleSheet("font-size: 14px; color: #64748B;")
             item_layout.addWidget(label_widget)
 
             value_widget = QLabel("加载中...")
-            value_widget.setStyleSheet("font-size: 14px; color: #333;")
+            value_widget.setStyleSheet("font-size: 15px; color: #1E293B;")
             value_widget.setWordWrap(True)
             item_layout.addWidget(value_widget)
 
@@ -365,11 +367,11 @@ class InsightTab(QWidget):
             item_layout.setSpacing(5)
 
             label_widget = QLabel(label)
-            label_widget.setStyleSheet("font-size: 13px; color: #666;")
+            label_widget.setStyleSheet("font-size: 14px; color: #64748B;")
             item_layout.addWidget(label_widget)
 
             value_widget = QLabel("加载中...")
-            value_widget.setStyleSheet("font-size: 14px; color: #333;")
+            value_widget.setStyleSheet("font-size: 15px; color: #1E293B;")
             value_widget.setWordWrap(True)
             item_layout.addWidget(value_widget)
 
@@ -394,7 +396,7 @@ class InsightTab(QWidget):
 
         # AI分析内容
         ai_label = QLabel("🧠 基于您的使用数据，分析如下：")
-        ai_label.setStyleSheet("font-size: 13px; color: #666;")
+        ai_label.setStyleSheet("font-size: 14px; color: #64748B;")
         layout.addWidget(ai_label)
 
         self._ai_placeholder = QLabel(
@@ -457,7 +459,7 @@ class InsightTab(QWidget):
         status_layout.setSpacing(5)
 
         status_label = QLabel("当前状态")
-        status_label.setStyleSheet("font-size: 13px; color: #666;")
+        status_label.setStyleSheet("font-size: 14px; color: #64748B;")
         status_layout.addWidget(status_label)
 
         self._status_value_label = QLabel("😊 正常")
@@ -510,7 +512,7 @@ class InsightTab(QWidget):
             item_layout.setSpacing(5)
 
             label_widget = QLabel(label)
-            label_widget.setStyleSheet("font-size: 13px; color: #666;")
+            label_widget.setStyleSheet("font-size: 14px; color: #64748B;")
             item_layout.addWidget(label_widget)
 
             value_widget = QLabel("0 次")
@@ -792,7 +794,7 @@ class InsightTab(QWidget):
                     if value == "暂无数据":
                         label.setStyleSheet("font-size: 14px; color: #999; font-style: italic;")
                     else:
-                        label.setStyleSheet("font-size: 14px; color: #333;")
+                        label.setStyleSheet("font-size: 15px; color: #1E293B;")
                     label.setText(value)
 
     def _refresh_library(self):
@@ -822,7 +824,7 @@ class InsightTab(QWidget):
                 top_categories = sorted(category_dist.items(), key=lambda x: x[1], reverse=True)[:2]
                 category_text = "、".join([cat for cat, _ in top_categories])
                 self._library_values['reading_category'].setText(category_text)
-                self._library_values['reading_category'].setStyleSheet("font-size: 14px; color: #333;")
+                self._library_values['reading_category'].setStyleSheet("font-size: 15px; color: #1E293B;")
             else:
                 self._library_values['reading_category'].setText("暂无记录")
                 self._library_values['reading_category'].setStyleSheet("font-size: 14px; color: #999; font-style: italic;")
