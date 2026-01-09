@@ -263,25 +263,25 @@ class ConversationService:
         # V2: 记录起卦时间（关键！用于六爻、梅花时间起卦）
         self.context.qigua_time = datetime.now()
 
-        # V2: FlowGuard输入验证
+        # V2: FlowGuard输入验证（AI优先，代码后备）
         validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE1_ICEBREAK")
+
         if validation_result.status == InputStatus.VALID:
-            # 使用FlowGuard提取的数据
+            # FlowGuard成功提取，使用提取的数据
             self.context.question_category = validation_result.extracted_data.get("question_category")
             self.context.random_numbers = validation_result.extracted_data.get("random_numbers", [])
+            self.logger.debug(f"FlowGuard验证成功: {validation_result.extracted_data}")
         else:
             # FlowGuard验证失败，回退到NLP解析
             self.logger.debug(f"FlowGuard验证: {validation_result.status}, 使用NLP解析")
 
-        # NLP解析作为备用
-        parsed_info = await self.nlp_parser.parse_icebreak_input(user_message)
-        if not parsed_info or "error" in parsed_info:
-            return self._retry_msg("stage1")
+            # NLP解析作为备用
+            parsed_info = await self.nlp_parser.parse_icebreak_input(user_message)
+            if not parsed_info or "error" in parsed_info:
+                return self._retry_msg("stage1")
 
-        # 优先使用FlowGuard数据，否则用NLP数据
-        if not self.context.question_category:
+            # 使用NLP解析的数据
             self.context.question_category = parsed_info.get("category")
-        if not self.context.random_numbers:
             self.context.random_numbers = parsed_info.get("numbers", [])
 
         if progress_callback:

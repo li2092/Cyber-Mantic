@@ -660,7 +660,7 @@ class FlowGuard:
                 "💡 **您可以这样说**：",
                 "```",
                 "最近在考虑是否要跳槽到互联网公司",
-                "想到的字是"变"",
+                "想到的字是'变'",
                 "```"
             ])
         elif stage == "STAGE3_COLLECT":
@@ -927,24 +927,26 @@ class FlowGuard:
 
     def validate_character(self, text: str) -> Optional[str]:
         """
-        V2新增：验证测字用的汉字
+        V2新增：验证测字用的汉字（代码后备验证器）
 
         提取优先级：
-        1. "测X字" 格式
-        2. 引号内的单字
-        3. 第一个汉字
+        1. "测X字" 格式 - 用户明确指定，任何汉字都提取（包括语气词）
+        2. 引号内的单字 - 用户明确指定，任何汉字都提取（包括语气词）
+        3. 自动提取第一个汉字 - 排除常见语气词（因为用户未明确指定）
+
+        注意：此为代码后备验证器，AI验证器优先使用
         """
-        # 1. 匹配 "测X字" 格式
+        # 1. 匹配 "测X字" 格式（用户明确指定，不排除任何字）
         match = re.search(r'测[「「\'\""]?([\u4e00-\u9fa5])[」」\'\""]?字', text)
         if match:
             return match.group(1)
 
-        # 2. 匹配引号内的汉字
+        # 2. 匹配引号内的汉字（用户明确指定，不排除任何字）
         match = re.search(r'[「「\'\""]+([\u4e00-\u9fa5])[」」\'\""]+', text)
         if match:
             return match.group(1)
 
-        # 3. 提取第一个独立的汉字（排除常见的语气词）
+        # 3. 自动提取第一个汉字（用户未明确指定时，排除常见语气词）
         exclude_chars = set("的了吧呢啊哦嗯是不我你他她它们这那")
         for char in text:
             if '\u4e00' <= char <= '\u9fa5' and char not in exclude_chars:
@@ -955,45 +957,59 @@ class FlowGuard:
     def validate_color(self, text: str) -> Optional[str]:
         """
         V2新增：验证颜色（用于梅花易数起卦）
+
+        注意：按关键词长度降序匹配，确保 "粉红色" 匹配到 "粉" 而非 "红"
         """
-        # 颜色关键词映射
+        # 颜色关键词映射（按长度优先匹配）
         color_keywords = {
-            "红": ["红", "红色", "赤", "朱红", "大红"],
-            "橙": ["橙", "橙色", "橘色"],
-            "黄": ["黄", "黄色", "金色", "金黄"],
-            "绿": ["绿", "绿色", "青色"],
-            "蓝": ["蓝", "蓝色", "湛蓝"],
-            "紫": ["紫", "紫色", "紫红"],
-            "白": ["白", "白色"],
-            "黑": ["黑", "黑色"],
-            "灰": ["灰", "灰色"],
-            "粉": ["粉", "粉色", "粉红"],
+            "粉": ["粉红色", "粉红", "粉色", "粉"],  # 粉红优先于红
+            "紫": ["紫红", "紫色", "紫"],  # 紫红优先于红
+            "红": ["大红", "朱红", "红色", "红", "赤"],
+            "橙": ["橘色", "橙色", "橙"],
+            "黄": ["金黄", "金色", "黄色", "黄"],
+            "绿": ["青色", "绿色", "绿"],
+            "蓝": ["湛蓝", "蓝色", "蓝"],
+            "白": ["白色", "白"],
+            "黑": ["黑色", "黑"],
+            "灰": ["灰色", "灰"],
         }
 
         text_lower = text.lower()
+        # 按关键词长度降序检查，更长的匹配优先
+        all_matches = []
         for color, keywords in color_keywords.items():
-            if any(kw in text_lower for kw in keywords):
-                return color
+            for kw in keywords:
+                if kw in text_lower:
+                    all_matches.append((len(kw), color))
+
+        if all_matches:
+            # 返回最长匹配对应的颜色
+            all_matches.sort(key=lambda x: -x[0])
+            return all_matches[0][1]
 
         return None
 
     def validate_direction(self, text: str) -> Optional[str]:
         """
         V2新增：验证方位（用于梅花易数起卦）
+
+        注意：复合方位（东南/东北/西南/西北）优先匹配
         """
-        # 方位关键词映射
-        direction_keywords = {
+        # 复合方位优先检查（长度更长）
+        compound_directions = ["东南", "东北", "西南", "西北"]
+        for direction in compound_directions:
+            if direction in text:
+                return direction
+
+        # 然后检查单一方位
+        simple_direction_keywords = {
             "东": ["东", "东方", "东边", "东面"],
             "南": ["南", "南方", "南边", "南面"],
             "西": ["西", "西方", "西边", "西面"],
             "北": ["北", "北方", "北边", "北面"],
-            "东南": ["东南"],
-            "东北": ["东北"],
-            "西南": ["西南"],
-            "西北": ["西北"],
         }
 
-        for direction, keywords in direction_keywords.items():
+        for direction, keywords in simple_direction_keywords.items():
             if any(kw in text for kw in keywords):
                 return direction
 
