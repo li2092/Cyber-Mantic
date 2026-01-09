@@ -15,8 +15,8 @@
 - [x] 确认六爻使用方案A（起卦时间生成伪随机）
 - [x] 确认梅花易数支持颜色/方位起卦
 
-### 进行中
-- [ ] 设计文档编写
+### 已完成
+- [x] 设计文档编写 (`wendao_flow_design.md` 大魔王审核通过)
 
 ### 待处理
 - [ ] 重新定义ConversationStage枚举
@@ -58,6 +58,15 @@
 
 ## 下一步行动
 
-1. 完成 `wendao_flow_design.md` 设计文档
-2. 大魔王审核设计文档
-3. 开始代码实现
+~~1. 完成 `wendao_flow_design.md` 设计文档~~  ✅
+~~2. 大魔王审核设计文档~~ ✅
+
+3. 按以下顺序开始代码实现：
+   - 后端数据模型 (`context.py`)
+   - 阶段枚举更新
+   - FlowGuard配置 (`flow_guard.py`)
+   - `conversation_service.py` 阶段处理
+   - 前端UI组件 (`quick_result_card.py`)
+   - 前端页面 (`ai_conversation_tab.py`)
+   - 提示词模板文件创建
+   - 测试更新
