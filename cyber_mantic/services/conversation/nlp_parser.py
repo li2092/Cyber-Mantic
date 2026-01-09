@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from api.manager import APIManager
+from api.prompt_loader import load_prompt
 from utils.logger import get_logger
 
 # AI增强任务类型（与TaskRouter统一）
@@ -827,32 +828,7 @@ class NLPParser:
             return code_result
 
         # 代码无法确定时，使用AI
-        prompt = f"""你是一个专门分析时间表达的助手。请分析用户描述中的时间信息。
-
-用户输入：
-{text}
-
-请判断用户对出生时间的表达属于哪种类型，并返回JSON：
-
-```json
-{{
-    "status": "certain|known_range|uncertain|unknown",
-    "hour": 0-23或null,
-    "candidates": [可能的小时列表],
-    "range_name": "时段名称（如'上午'）或null",
-    "confidence_level": "用户对时间的确定程度描述",
-    "reasoning": "判断依据"
-}}
-```
-
-**status分类规则**：
-- certain: 用户明确知道具体时间点
-- known_range: 用户知道是某个时段（上午/下午/凌晨等）
-- uncertain: 用户不太确定，有模糊词（大概、可能、好像）
-- unknown: 用户明确表示不知道/不记得
-
-只返回JSON：
-"""
+        prompt = load_prompt("enhance", "time_expression", user_input=text)
 
         try:
             response = await self.api_manager.call_api(
@@ -902,34 +878,7 @@ class NLPParser:
         Returns:
             问题类型识别结果
         """
-        prompt = f"""你是一个问题分类助手。请判断用户咨询的问题类型。
-
-用户问题：
-{text}
-
-可选类型：
-- 事业：工作、职业发展、跳槽、升职、创业、职场关系
-- 感情：恋爱、婚姻、姻缘、桃花、分手、复合
-- 财运：财富、投资、理财、收入、生意、亏损
-- 健康：身体、疾病、养生、医疗
-- 学业：考试、学习、升学、考研、资格证
-- 决策：选择、是否应该、要不要、该不该
-- 人际：人际关系、社交、家庭关系
-- 其他：以上都不匹配
-
-请返回JSON：
-```json
-{{
-    "primary_type": "主要类型",
-    "secondary_type": "次要类型或null",
-    "confidence": 0.0-1.0,
-    "keywords_found": ["找到的关键词"],
-    "reasoning": "分类依据"
-}}
-```
-
-只返回JSON：
-"""
+        prompt = load_prompt("enhance", "question_type", user_input=text)
 
         try:
             response = await self.api_manager.call_api(
@@ -965,31 +914,11 @@ class NLPParser:
         Returns:
             吉凶判断结果
         """
-        prompt = f"""你是一个术数分析助手。请从以下{theory_name}分析结果中提取吉凶判断。
-
-分析结果：
-{theory_result[:1000]}
-
-请综合分析，判断整体趋势是吉是凶，返回JSON：
-
-```json
-{{
-    "judgment": "吉|凶|平",
-    "confidence": 0.0-1.0,
-    "short_term": "吉|凶|平（短期趋势）",
-    "long_term": "吉|凶|平（长期趋势）",
-    "key_points": ["关键判断点"],
-    "advice": "简要建议"
-}}
-```
-
-**判断规则**：
-- 吉：总体顺利、有利、成功概率高
-- 凶：总体不利、有阻碍、需谨慎
-- 平：中性、有好有坏、需要权衡
-
-只返回JSON：
-"""
+        prompt = load_prompt(
+            "enhance", "judgment_extract",
+            theory_name=theory_name,
+            theory_result=theory_result[:1000]
+        )
 
         try:
             response = await self.api_manager.call_api(
@@ -1033,40 +962,15 @@ class NLPParser:
         day = birth_info.get("day")
         current_candidates = birth_info.get("candidate_hours", list(range(24)))
 
-        prompt = f"""你是一位经验丰富的命理师，擅长根据人生重大事件反推出生时辰。
-
-用户出生信息：
-- 出生日期：{year}年{month}月{day}日
-- 当前候选时辰：{current_candidates}
-
-用户提供的历史事件：
-- 事件描述：{event_description}
-- 发生年份：{event_year if event_year else '未提供'}
-
-请结合八字命理、流年运势分析此事件，推断最可能的出生时辰。
-
-```json
-{{
-    "likely_hours": [最可能的小时列表],
-    "most_likely_hour": 最可能的单个小时或null,
-    "excluded_hours": [可以排除的小时],
-    "confidence": "高|中|低",
-    "analysis": {{
-        "event_type": "事件类型（事业变动/感情变化/财运/健康等）",
-        "related_stars": ["相关星曜/神煞"],
-        "reasoning": "推理过程"
-    }},
-    "suggestions": ["进一步验证建议"]
-}}
-```
-
-命理推断依据：
-- 大运、流年与日主的关系
-- 事件发生时的神煞、星曜触发
-- 不同时辰的命格特征与事件的对应关系
-
-只返回JSON：
-"""
+        prompt = load_prompt(
+            "enhance", "event_hour_infer",
+            year=year,
+            month=month,
+            day=day,
+            current_candidates=current_candidates,
+            event_description=event_description,
+            event_year=event_year if event_year else '未提供'
+        )
 
         try:
             response = await self.api_manager.call_api(

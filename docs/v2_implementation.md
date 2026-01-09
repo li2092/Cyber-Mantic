@@ -236,6 +236,21 @@ result = calculator.get_correction_for_birth(
 1. 代码验证优先（快速、稳定、无成本）
 2. AI作为备用增强（处理复杂/模糊输入）
 3. 统一配置入口（设置界面可修改使用的API/模型）
+4. 提示词模板化（使用`prompt_loader`加载MD格式提示词）
+
+**提示词文件结构** (`cyber_mantic/prompts/`):
+```
+enhance/                     # AI增强验证提示词
+├── time_expression.md       # 时辰确定性分析
+├── question_type.md         # 问题类型识别
+├── judgment_extract.md      # 吉凶判断提取
+├── event_hour_infer.md      # 事件时辰推断
+├── input_validate.md        # 输入信息提取
+└── smart_understand.md      # 智能理解输入
+
+verification/                # 回溯验证提示词
+└── questions_gen.md         # 验证问题生成
+```
 
 ---
 

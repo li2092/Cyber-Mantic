@@ -169,6 +169,7 @@ class TaskAPISettings(QGroupBox):
         ("出生信息解析", "解析用户输入的出生信息"),
         ("冲突解决分析", "理论冲突时的深度分析"),
         ("回溯验证生成", "生成验证问题"),
+        ("输入增强验证", "AI增强验证（时辰分析/问题识别/吉凶提取等）"),
     ]
 
     def __init__(self, theme: str = "dark", parent=None):

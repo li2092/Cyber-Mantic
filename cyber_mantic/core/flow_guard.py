@@ -26,6 +26,7 @@ from enum import Enum
 from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from utils.logger import get_logger
+from api.prompt_loader import load_prompt
 
 if TYPE_CHECKING:
     from api.manager import APIManager
@@ -420,24 +421,11 @@ class FlowGuard:
             level_text = "必填" if req.level == RequirementLevel.REQUIRED else "可选"
             req_descriptions.append(f"- {req.name}: {req.description} ({level_text})，示例：{req.example}")
 
-        prompt = f"""你是一个智能信息提取助手。请从用户输入中提取以下信息。
-
-用户输入：
-{user_message}
-
-需要提取的信息：
-{chr(10).join(req_descriptions)}
-
-请返回JSON格式，只包含能够从用户输入中明确识别出的字段。
-如果某个字段无法确定，不要返回该字段。
-
-返回格式示例：
-```json
-{{"field_name": "extracted_value"}}
-```
-
-只返回JSON，不要有其他文字：
-"""
+        prompt = load_prompt(
+            "enhance", "input_validate",
+            user_input=user_message,
+            requirements="\n".join(req_descriptions)
+        )
 
         try:
             response = await self.api_manager.call_api(
@@ -490,33 +478,13 @@ class FlowGuard:
 
         context_str = json.dumps(context, ensure_ascii=False) if context else "无"
 
-        prompt = f"""你是赛博玄数的对话理解助手。请分析用户的输入意图。
-
-当前对话阶段：{self._get_stage_display_name(self.current_stage)}
-已收集信息：{json.dumps(self.collected_data, ensure_ascii=False)}
-上下文：{context_str}
-
-用户输入：
-{user_message}
-
-请分析：
-1. 用户想表达什么？
-2. 是否在回答当前阶段的问题？
-3. 是否想跳过某些信息？
-4. 是否在问问题而不是提供信息？
-
-返回JSON：
-```json
-{{
-    "intent": "provide_info|ask_question|skip|unclear|other",
-    "extracted_info": {{}},
-    "follow_up_needed": true/false,
-    "suggested_response": "建议如何回应"
-}}
-```
-
-只返回JSON：
-"""
+        prompt = load_prompt(
+            "enhance", "smart_understand",
+            stage_name=self._get_stage_display_name(self.current_stage),
+            collected_data=json.dumps(self.collected_data, ensure_ascii=False),
+            context=context_str,
+            user_input=user_message
+        )
 
         try:
             response = await self.api_manager.call_api(
