@@ -39,13 +39,20 @@
 - [x] `ai_conversation_tab.py` - 更新阶段枚举引用
 - [x] `ai_conversation_tab.py` - 简化右侧面板
 
-### 待处理 📋
+### 已完成 ✅ (P1)
 
 #### P1: 提示词模板
-- [ ] 创建阶段2追问模板 (`prompts/conversation/stage2_deepen.md`)
-- [ ] 创建阶段3追问模板 (`prompts/conversation/stage3_collect.md`)
-- [ ] 创建阶段4验证模板 (`prompts/conversation/stage4_verify.md`)
-- [ ] 创建阶段5报告模板 (`prompts/conversation/stage5_report.md`)
+- [x] 创建阶段1回复模板 (`prompts/conversation/stage1_response.md`)
+- [x] 创建阶段2回复模板 (`prompts/conversation/stage2_response.md`)
+- [x] 创建阶段3回复模板 (`prompts/conversation/stage3_response.md`)
+- [x] 创建阶段4验证模板 (`prompts/conversation/stage4_verification.md`)
+- [x] 创建阶段5报告模板（三轮）
+  - `prompts/conversation/stage5_report_round1.md`
+  - `prompts/conversation/stage5_report_round2.md`
+  - `prompts/conversation/stage5_report_round3.md`
+- [x] 创建公共模块
+  - `prompts/common/role_definition.md`
+  - `prompts/common/output_format.md`
 
 #### P2: 测试与优化
 - [ ] 端到端测试完整流程
@@ -61,7 +68,8 @@
 | `core/flow_guard.py` | 信息收集验证 | ✅ 已更新 |
 | `ui/widgets/quick_result_card.py` | 理论结果卡片 | ✅ 已更新 |
 | `ui/tabs/ai_conversation_tab.py` | 问道对话页面 | ✅ 已更新 |
-| `prompts/conversation/*.md` | AI提示词模板 | 📋 待创建 |
+| `prompts/conversation/*.md` | AI提示词模板 | ✅ 已创建 |
+| `prompts/common/*.md` | 公共模块 | ✅ 已创建 |
 
 ## 提交记录
 
@@ -83,6 +91,6 @@
 2. ~~大魔王审核设计文档~~ ✅
 3. ~~后端代码实现~~ ✅
 4. ~~前端代码实现~~ ✅
-5. **创建提示词模板文件** ← 当前任务
-6. 端到端测试
+5. ~~创建提示词模板文件~~ ✅
+6. **端到端测试** ← 当前任务
 7. 修复发现的问题
