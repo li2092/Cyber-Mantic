@@ -246,17 +246,34 @@ class DynamicVerificationGenerator:
             # 尝试直接解析JSON
             data = json.loads(response)
         except json.JSONDecodeError:
-            # 尝试从响应中提取JSON数组
-            json_match = re.search(r'\[[\s\S]*?\]', response)
-            if json_match:
+            # 尝试从 ```json ``` 代码块中提取
+            code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response)
+            if code_block_match:
                 try:
-                    data = json.loads(json_match.group())
+                    data = json.loads(code_block_match.group(1).strip())
+                    self.logger.info("从代码块中成功提取JSON")
                 except json.JSONDecodeError:
-                    self.logger.warning("无法解析AI响应为JSON")
+                    pass
+                else:
+                    # 成功解析，跳过后续处理
+                    pass
+
+            # 如果代码块提取失败，尝试从响应中提取JSON数组（贪婪匹配）
+            if 'data' not in locals():
+                # 使用贪婪匹配找最长的JSON数组
+                json_match = re.search(r'\[[\s\S]*\]', response)
+                if json_match:
+                    try:
+                        data = json.loads(json_match.group())
+                        self.logger.info("从响应中提取JSON数组成功")
+                    except json.JSONDecodeError:
+                        self.logger.warning("无法解析AI响应为JSON")
+                        self.logger.debug(f"AI响应内容: {response[:500]}...")
+                        return questions
+                else:
+                    self.logger.warning("AI响应中未找到JSON数组")
+                    self.logger.debug(f"AI响应内容: {response[:500]}...")
                     return questions
-            else:
-                self.logger.warning("AI响应中未找到JSON数组")
-                return questions
 
         # 转换为VerificationQuestion对象
         if isinstance(data, list):

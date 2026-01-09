@@ -604,6 +604,13 @@ class ConversationService:
         self.logger.info(f"六爻自动起卦数字: {self.context.liuyao_numbers}")
 
         if progress_callback:
+            progress_callback("理论选择", "正在选择最适合的理论...", 70)
+
+        # V2修复: 必须先选择理论，再运行分析
+        theory_selection_result = await self._calculate_theory_fitness(theory_callback)
+        self.logger.info(f"选中的理论: {[t.get('theory') if isinstance(t, dict) else t for t in self.context.selected_theories]}")
+
+        if progress_callback:
             progress_callback("多理论分析", "正在计算多理论结果...", 75)
 
         # 运行多理论分析
@@ -657,7 +664,8 @@ MBTI：{self.context.mbti_type or '未提供'}
 
         V2更新：
         - 使用 STAGE4_VERIFY FlowGuard验证
-        - 直接转到 STAGE5_REPORT
+        - 检测用户是否在回答验证问题
+        - 支持用户跳过验证或确认继续
         """
         # 更新会话阶段
         self._update_session_stage('stage4_verify')
@@ -665,11 +673,37 @@ MBTI：{self.context.mbti_type or '未提供'}
         if progress_callback:
             progress_callback("阶段4", "正在分析验证反馈...", 85)
 
+        # 检测用户是否想跳过验证或直接继续
+        skip_keywords = ["跳过", "继续", "下一步", "生成报告", "不用验证", "直接出报告"]
+        if any(kw in user_message for kw in skip_keywords):
+            self.logger.info("用户选择跳过验证，直接生成报告")
+            self.context.stage = ConversationStage.STAGE5_REPORT
+            return await self._handle_stage5_report(progress_callback, theory_callback)
+
+        # 解析验证反馈
         feedback = await self.nlp_parser.parse_verification_feedback(
             user_message,
             self.context.retrospective_events
         )
+
         if feedback:
+            # 检查是否是有效的验证反馈（而不是其他类型的输入）
+            specific_corrections = feedback.get("specific_corrections", [])
+            is_birth_info = any("出生" in str(c) or "生日" in str(c) for c in specific_corrections)
+
+            if is_birth_info:
+                # 用户可能在修改出生信息而非回答验证问题
+                self.logger.info("检测到用户可能在修改出生信息，询问用户意图")
+                return """😊 我注意到您提供的似乎是出生信息。
+
+请问您想要：
+1. **修改出生信息** - 请明确告诉我要修改什么
+2. **回答验证问题** - 请针对上面的问题回答
+3. **跳过验证** - 回复"跳过"或"继续"直接生成报告
+
+您想怎么做呢？"""
+
+            # 有效的验证反馈
             self.context.verification_feedback.append({
                 "raw_message": user_message,
                 "parsed_feedback": feedback
