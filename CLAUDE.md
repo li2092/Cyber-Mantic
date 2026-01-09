@@ -78,9 +78,14 @@ docs/
 
 ### 现有三文件清单
 
-| 功能 | 任务规划 | 笔记 | 交付物 |
-|------|----------|------|--------|
-| 问道界面 | `wendao_task_plan.md` | `wendao_notes.md` | `wendao_enhancement.md` |
+| 功能 | 任务规划 | 笔记 | 交付物 | 状态 |
+|------|----------|------|--------|------|
+| 问道界面 | `wendao_task_plan.md` | `wendao_notes.md` | `wendao_enhancement.md` | 🟢 P0/P1完成，P2优化中 |
+| 问道流程设计 | `wendao_flow_task_plan.md` | `wendao_flow_notes.md` | `wendao_flow_design.md` | ✅ 设计完成，已落地 |
+| V2版本 | `v2_task_plan.md` | `v2_notes.md` | `v2_implementation.md` | ✅ 核心功能已完成 |
+
+**补充文档**：
+- `v2_frontend_gap_analysis.md` - V2前端差异分析报告
 
 ## 特殊要求
 - 叫我大魔王
