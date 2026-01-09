@@ -2,17 +2,16 @@
 QuickResultCard - 快速结论卡片组件
 
 V2版本核心组件，用于显示各理论分析的即时结果：
-- 支持多种状态：等待中、进行中、完成（吉/凶/平）、错误
+- 支持多种状态：等待中、进行中、完成（五级吉凶）、错误
 - 状态切换动画
-- 点击展开详情
+- 点击展开/收起详情（V2新增）
 
-状态定义：
-- WAITING: 等待中 - 灰色边框
-- RUNNING: 进行中 - 蓝色边框 + 动画
-- COMPLETED_GOOD: 吉 - 绿色边框
-- COMPLETED_BAD: 凶 - 红色边框
-- COMPLETED_NEUTRAL: 平 - 橙色边框
-- ERROR: 错误 - 灰色边框
+V2五级吉凶颜色系统：
+- COMPLETED_DAJI: 大吉 - 红色边框 (judgment_level >= 0.8)
+- COMPLETED_XIAOJI: 小吉 - 橙色边框 (0.6 <= judgment_level < 0.8)
+- COMPLETED_PING: 平 - 灰色边框 (0.4 <= judgment_level < 0.6)
+- COMPLETED_XIAOXIONG: 小凶 - 深绿边框 (0.2 <= judgment_level < 0.4)
+- COMPLETED_DAXIONG: 大凶 - 深黑边框 (judgment_level < 0.2)
 """
 
 from PyQt6.QtWidgets import (
@@ -25,13 +24,21 @@ from typing import Optional
 
 
 class CardStatus(Enum):
-    """卡片状态枚举"""
-    WAITING = "waiting"           # 等待中
-    RUNNING = "running"           # 进行中
-    COMPLETED_GOOD = "good"       # 完成-吉
-    COMPLETED_BAD = "bad"         # 完成-凶
-    COMPLETED_NEUTRAL = "neutral" # 完成-平
-    ERROR = "error"               # 错误
+    """卡片状态枚举（V2五级吉凶系统）"""
+    WAITING = "waiting"                   # 等待中
+    RUNNING = "running"                   # 进行中
+    # V2五级吉凶
+    COMPLETED_DAJI = "daji"               # 大吉 (judgment_level >= 0.8)
+    COMPLETED_XIAOJI = "xiaoji"           # 小吉 (0.6 <= judgment_level < 0.8)
+    COMPLETED_PING = "ping"               # 平 (0.4 <= judgment_level < 0.6)
+    COMPLETED_XIAOXIONG = "xiaoxiong"     # 小凶 (0.2 <= judgment_level < 0.4)
+    COMPLETED_DAXIONG = "daxiong"         # 大凶 (judgment_level < 0.2)
+    ERROR = "error"                       # 错误
+
+    # 向后兼容别名
+    COMPLETED_GOOD = "daji"               # 兼容旧代码
+    COMPLETED_BAD = "daxiong"             # 兼容旧代码
+    COMPLETED_NEUTRAL = "ping"            # 兼容旧代码
 
 
 class QuickResultCard(QFrame):
@@ -40,7 +47,7 @@ class QuickResultCard(QFrame):
     # 信号：卡片被点击（展开详情）
     clicked = pyqtSignal(str)  # 发送theory_name
 
-    # 状态样式配置 - 深色主题
+    # V2: 五级吉凶颜色配置 - 深色主题
     STATUS_STYLES_DARK = {
         CardStatus.WAITING: {
             "border": "#4B5563",
@@ -54,23 +61,36 @@ class QuickResultCard(QFrame):
             "icon": "⏳",
             "text": "#93C5FD"
         },
-        CardStatus.COMPLETED_GOOD: {
-            "border": "#10B981",
-            "bg": "#064E3B",
-            "icon": "✅",
-            "text": "#6EE7B7"
-        },
-        CardStatus.COMPLETED_BAD: {
-            "border": "#EF4444",
+        # V2: 五级吉凶颜色
+        CardStatus.COMPLETED_DAJI: {          # 大吉 - 喜庆红
+            "border": "#DC2626",
             "bg": "#7F1D1D",
-            "icon": "⚠️",
+            "icon": "🔴",
             "text": "#FCA5A5"
         },
-        CardStatus.COMPLETED_NEUTRAL: {
-            "border": "#F59E0B",
-            "bg": "#78350F",
-            "icon": "➖",
-            "text": "#FCD34D"
+        CardStatus.COMPLETED_XIAOJI: {        # 小吉 - 喜庆橙
+            "border": "#EA580C",
+            "bg": "#7C2D12",
+            "icon": "🟠",
+            "text": "#FDBA74"
+        },
+        CardStatus.COMPLETED_PING: {          # 平 - 浅灰
+            "border": "#9CA3AF",
+            "bg": "#374151",
+            "icon": "⚪",
+            "text": "#D1D5DB"
+        },
+        CardStatus.COMPLETED_XIAOXIONG: {     # 小凶 - 深绿
+            "border": "#166534",
+            "bg": "#14532D",
+            "icon": "🟢",
+            "text": "#86EFAC"
+        },
+        CardStatus.COMPLETED_DAXIONG: {       # 大凶 - 深黑
+            "border": "#1F2937",
+            "bg": "#111827",
+            "icon": "⚫",
+            "text": "#6B7280"
         },
         CardStatus.ERROR: {
             "border": "#6B7280",
@@ -80,13 +100,13 @@ class QuickResultCard(QFrame):
         },
     }
 
-    # 状态样式配置 - 浅色主题
+    # V2: 五级吉凶颜色配置 - 浅色主题
     STATUS_STYLES_LIGHT = {
         CardStatus.WAITING: {
             "border": "#D1D5DB",
             "bg": "#F3F4F6",
             "icon": "⬚",
-            "text": "#4B5563"  # 加深文字颜色以提高对比度
+            "text": "#4B5563"
         },
         CardStatus.RUNNING: {
             "border": "#3B82F6",
@@ -94,29 +114,42 @@ class QuickResultCard(QFrame):
             "icon": "⏳",
             "text": "#1D4ED8"
         },
-        CardStatus.COMPLETED_GOOD: {
-            "border": "#10B981",
-            "bg": "#ECFDF5",
-            "icon": "✅",
-            "text": "#047857"
-        },
-        CardStatus.COMPLETED_BAD: {
-            "border": "#EF4444",
+        # V2: 五级吉凶颜色
+        CardStatus.COMPLETED_DAJI: {          # 大吉 - 喜庆红
+            "border": "#DC2626",
             "bg": "#FEF2F2",
-            "icon": "⚠️",
+            "icon": "🔴",
             "text": "#B91C1C"
         },
-        CardStatus.COMPLETED_NEUTRAL: {
-            "border": "#F59E0B",
-            "bg": "#FFFBEB",
-            "icon": "➖",
-            "text": "#92400E"  # 加深文字颜色以提高对比度
+        CardStatus.COMPLETED_XIAOJI: {        # 小吉 - 喜庆橙
+            "border": "#EA580C",
+            "bg": "#FFF7ED",
+            "icon": "🟠",
+            "text": "#C2410C"
+        },
+        CardStatus.COMPLETED_PING: {          # 平 - 浅灰
+            "border": "#9CA3AF",
+            "bg": "#F9FAFB",
+            "icon": "⚪",
+            "text": "#4B5563"
+        },
+        CardStatus.COMPLETED_XIAOXIONG: {     # 小凶 - 深绿
+            "border": "#166534",
+            "bg": "#F0FDF4",
+            "icon": "🟢",
+            "text": "#166534"
+        },
+        CardStatus.COMPLETED_DAXIONG: {       # 大凶 - 深黑
+            "border": "#1F2937",
+            "bg": "#F3F4F6",
+            "icon": "⚫",
+            "text": "#111827"
         },
         CardStatus.ERROR: {
             "border": "#9CA3AF",
             "bg": "#F3F4F6",
             "icon": "❌",
-            "text": "#4B5563"  # 加深文字颜色以提高对比度
+            "text": "#4B5563"
         },
     }
 
@@ -240,28 +273,37 @@ class QuickResultCard(QFrame):
         self._apply_style()
         self._start_animation()
 
-    def set_completed(self, summary: str, judgment: str):
+    def set_completed(self, summary: str, judgment: str, judgment_level: float = 0.5):
         """
-        设置为完成状态
+        设置为完成状态（V2五级吉凶系统）
 
         Args:
             summary: 结果摘要
-            judgment: 吉凶判断 ('吉', '凶', '平')
+            judgment: 吉凶判断 ('大吉', '小吉', '平', '小凶', '大凶', '吉', '凶')
+            judgment_level: 吉凶等级 (0.0-1.0)，用于精确判断
         """
         self._stop_animation()
 
         self.summary = summary
         self.judgment = judgment
 
-        if judgment == "吉":
-            self.status = CardStatus.COMPLETED_GOOD
-        elif judgment == "凶":
-            self.status = CardStatus.COMPLETED_BAD
-        else:
-            self.status = CardStatus.COMPLETED_NEUTRAL
+        # V2: 五级吉凶判断
+        # 优先使用 judgment_level，其次使用文字判断
+        if judgment_level >= 0.8 or judgment in ("大吉", "吉"):
+            self.status = CardStatus.COMPLETED_DAJI
+        elif judgment_level >= 0.6 or judgment == "小吉":
+            self.status = CardStatus.COMPLETED_XIAOJI
+        elif judgment_level >= 0.4 or judgment == "平":
+            self.status = CardStatus.COMPLETED_PING
+        elif judgment_level >= 0.2 or judgment == "小凶":
+            self.status = CardStatus.COMPLETED_XIAOXIONG
+        else:  # judgment_level < 0.2 or judgment in ("大凶", "凶")
+            self.status = CardStatus.COMPLETED_DAXIONG
 
-        # 截断过长的摘要
-        display_summary = summary[:40] + "..." if len(summary) > 40 else summary
+        # 截断过长的摘要（收起状态显示40字，展开状态显示150字）
+        self._expanded = getattr(self, '_expanded', False)
+        max_len = 150 if self._expanded else 40
+        display_summary = summary[:max_len] + "..." if len(summary) > max_len else summary
         self.summary_label.setText(display_summary)
 
         self._apply_style()
@@ -294,10 +336,35 @@ class QuickResultCard(QFrame):
         self.icon_label.setText(icons[self._animation_frame])
 
     def mousePressEvent(self, event):
-        """鼠标点击事件"""
+        """鼠标点击事件 - V2: 展开/收起详情"""
         if event.button() == Qt.MouseButton.LeftButton:
+            self.toggle_expand()
             self.clicked.emit(self.theory_name)
         super().mousePressEvent(event)
+
+    def toggle_expand(self):
+        """V2新增：切换展开/收起状态"""
+        self._expanded = not getattr(self, '_expanded', False)
+
+        if self._expanded:
+            # 展开状态：显示完整摘要（最多150字）
+            self.setMinimumHeight(100)
+            self.setMaximumHeight(150)
+            max_len = 150
+        else:
+            # 收起状态：显示简短摘要（最多40字）
+            self.setMinimumHeight(60)
+            self.setMaximumHeight(80)
+            max_len = 40
+
+        # 重新设置摘要显示
+        if self.summary:
+            display_summary = self.summary[:max_len] + "..." if len(self.summary) > max_len else self.summary
+            self.summary_label.setText(display_summary)
+
+    def is_expanded(self) -> bool:
+        """V2新增：获取展开状态"""
+        return getattr(self, '_expanded', False)
 
     def get_status(self) -> CardStatus:
         """获取当前状态"""
@@ -318,8 +385,8 @@ class QuickResultPanel(QFrame):
     # 信号：某个理论卡片被点击
     theory_clicked = pyqtSignal(str)
 
-    # 支持的理论列表
-    THEORIES = ["小六壬", "八字", "紫微斗数", "奇门遁甲", "大六壬", "六爻", "梅花易数"]
+    # V2: 支持的理论列表（新增测字术）
+    THEORIES = ["小六壬", "测字术", "八字", "紫微斗数", "奇门遁甲", "大六壬", "六爻", "梅花易数"]
 
     def __init__(self, theme: str = "dark", parent=None):
         super().__init__(parent)
