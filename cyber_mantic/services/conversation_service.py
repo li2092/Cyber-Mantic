@@ -1,18 +1,24 @@
 """
-ConversationService - 纯AI对话模式服务（委托重构版）
+ConversationService - 纯AI对话模式服务（V2重构版）
 
-实现渐进式5阶段智能交互流程：
-阶段1_破冰：事项分类 + 3个随机数字 → 小六壬快速初判
-阶段2_基础信息：出生年月日、性别、MBTI等 → 展示可用理论
-阶段3_深度补充：针对性补充信息（时辰推断、额外占卜）
-阶段4_结果确认：回溯验证（过去3-5年关键事件）
-阶段5_完整报告：生成详细分析报告 + 常规问答
+实现渐进式5阶段8步骤智能交互流程：
+
+V2流程（5阶段8步骤）：
+- 阶段0: 欢迎 - 固定欢迎模板
+- 阶段1: 破冰 - 咨询类别 + 3个随机数 → 小六壬
+- 阶段2: 深入 - 具体描述 + 汉字 → 测字术（V2新增）
+- 阶段3: 信息收集 - 生辰+性别+MBTI → 多理论
+- 阶段4: 验证 - 回溯验证问题
+- 阶段5: 报告 - 综合报告（AI多轮思考）
+- 问答: 持续问答
 
 架构说明：
 本模块采用委托模式，将具体逻辑委托给专门的处理器：
 - NLPParser: 自然语言解析
 - QAHandler: 问答处理
 - ReportGenerator: 报告生成
+- FlowGuard: 流程监管（V2）
+- DynamicVerificationGenerator: 回溯问题生成（V2）
 """
 
 import json
@@ -28,6 +34,7 @@ from theories.daliuren.theory import DaLiuRenTheory
 from theories.xiaoliu.theory import XiaoLiuRenTheory
 from theories.liuyao.theory import LiuYaoTheory
 from theories.meihua.theory import MeiHuaTheory
+from theories.cezi.theory import CeZiTheory  # V2新增：测字术
 from core.theory_selector import TheorySelector
 from utils.logger import get_logger
 
@@ -91,6 +98,7 @@ class ConversationService:
         # 初始化理论组件
         self.theory_selector = TheorySelector()
         self.xiaoliu_theory = XiaoLiuRenTheory()
+        self.cezi_theory = CeZiTheory()  # V2新增：测字术
 
         # 加载配置
         self._load_config()
@@ -165,19 +173,41 @@ class ConversationService:
         self._sync_flow_guard_stage(stage)
 
         try:
+            # V2: 新的阶段路由逻辑
             # INIT 阶段也当作破冰阶段处理（用户可能在欢迎消息之前就发送了消息）
             if stage in (ConversationStage.INIT, ConversationStage.STAGE1_ICEBREAK):
                 response = await self._handle_stage1(user_message, progress_callback, theory_callback)
-            elif stage == ConversationStage.STAGE2_BASIC_INFO:
-                response = await self._handle_stage2(user_message, progress_callback, theory_callback)
-            elif stage == ConversationStage.STAGE3_SUPPLEMENT:
-                response = await self._handle_stage3(user_message, progress_callback, theory_callback)
-            elif stage == ConversationStage.STAGE4_VERIFICATION:
-                response = await self._handle_stage4(user_message, progress_callback, theory_callback)
-            elif stage == ConversationStage.STAGE5_FINAL_REPORT:
-                response = await self._handle_stage5(progress_callback, theory_callback)
+
+            # V2新增：阶段2 深入（测字术）
+            elif stage == ConversationStage.STAGE2_DEEPEN:
+                response = await self._handle_stage2_deepen(user_message, progress_callback, theory_callback)
+
+            # V2: 阶段3 信息收集（原阶段2+3合并）
+            elif stage == ConversationStage.STAGE3_COLLECT:
+                response = await self._handle_stage3_collect(user_message, progress_callback, theory_callback)
+
+            # V2: 阶段4 验证
+            elif stage == ConversationStage.STAGE4_VERIFY:
+                response = await self._handle_stage4_verify(user_message, progress_callback, theory_callback)
+
+            # V2: 阶段5 报告
+            elif stage == ConversationStage.STAGE5_REPORT:
+                response = await self._handle_stage5_report(progress_callback, theory_callback)
+
+            # 问答阶段
             elif stage in (ConversationStage.QA, ConversationStage.COMPLETED):
                 response = await self._handle_qa(user_message, progress_callback)
+
+            # 向后兼容：旧阶段枚举（可能来自旧的保存数据）
+            elif hasattr(ConversationStage, 'STAGE2_BASIC_INFO') and stage == ConversationStage.STAGE2_BASIC_INFO:
+                response = await self._handle_stage3_collect(user_message, progress_callback, theory_callback)
+            elif hasattr(ConversationStage, 'STAGE3_SUPPLEMENT') and stage == ConversationStage.STAGE3_SUPPLEMENT:
+                response = await self._handle_stage3_collect(user_message, progress_callback, theory_callback)
+            elif hasattr(ConversationStage, 'STAGE4_VERIFICATION') and stage == ConversationStage.STAGE4_VERIFICATION:
+                response = await self._handle_stage4_verify(user_message, progress_callback, theory_callback)
+            elif hasattr(ConversationStage, 'STAGE5_FINAL_REPORT') and stage == ConversationStage.STAGE5_FINAL_REPORT:
+                response = await self._handle_stage5_report(progress_callback, theory_callback)
+
             else:
                 response = "系统错误：未知的对话阶段"
                 self.logger.error(f"未知对话阶段: {stage}")
@@ -192,13 +222,15 @@ class ConversationService:
             return error_msg
 
     def _sync_flow_guard_stage(self, stage: ConversationStage):
-        """同步FlowGuard阶段状态"""
+        """同步FlowGuard阶段状态（V2更新）"""
         stage_mapping = {
+            # V2新阶段映射
             ConversationStage.INIT: "STAGE1_ICEBREAK",
             ConversationStage.STAGE1_ICEBREAK: "STAGE1_ICEBREAK",
-            ConversationStage.STAGE2_BASIC_INFO: "STAGE2_BASIC_INFO",
-            ConversationStage.STAGE3_SUPPLEMENT: "STAGE3_SUPPLEMENT",
-            ConversationStage.STAGE4_VERIFICATION: "STAGE4_VERIFICATION",
+            ConversationStage.STAGE2_DEEPEN: "STAGE2_DEEPEN",      # V2新增
+            ConversationStage.STAGE3_COLLECT: "STAGE3_COLLECT",    # V2重命名
+            ConversationStage.STAGE4_VERIFY: "STAGE4_VERIFY",      # V2重命名
+            ConversationStage.STAGE5_REPORT: "STAGE5_REPORT",      # V2重命名
         }
         flow_guard_stage = stage_mapping.get(stage)
         if flow_guard_stage:
@@ -207,7 +239,13 @@ class ConversationService:
     # ==================== 阶段处理 ====================
 
     async def _handle_stage1(self, user_message: str, progress_callback, theory_callback=None) -> str:
-        """阶段1：破冰 - 解析问题和随机数字，小六壬起卦"""
+        """
+        阶段1：破冰 - 解析问题类别和随机数字，小六壬起卦
+
+        V2更新：
+        - 记录起卦时间（用于后续六爻、梅花）
+        - 转到阶段2深入（测字术）而不是直接收集出生信息
+        """
         # 开始会话追踪
         try:
             stats_manager = get_usage_stats_manager()
@@ -222,24 +260,29 @@ class ConversationService:
         if progress_callback:
             progress_callback("阶段1", "正在解析您的问题和随机数字...", 10)
 
+        # V2: 记录起卦时间（关键！用于六爻、梅花时间起卦）
+        self.context.qigua_time = datetime.now()
+
         # V2: FlowGuard输入验证
         validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE1_ICEBREAK")
         if validation_result.status == InputStatus.VALID:
             # 使用FlowGuard提取的数据
             self.context.question_category = validation_result.extracted_data.get("question_category")
             self.context.random_numbers = validation_result.extracted_data.get("random_numbers", [])
-            self.context.question_description = validation_result.extracted_data.get("question_description", "")
         else:
             # FlowGuard验证失败，回退到NLP解析
             self.logger.debug(f"FlowGuard验证: {validation_result.status}, 使用NLP解析")
 
+        # NLP解析作为备用
         parsed_info = await self.nlp_parser.parse_icebreak_input(user_message)
         if not parsed_info or "error" in parsed_info:
             return self._retry_msg("stage1")
 
-        self.context.question_category = parsed_info.get("category")
-        self.context.question_description = parsed_info.get("description", "")
-        self.context.random_numbers = parsed_info.get("numbers", [])
+        # 优先使用FlowGuard数据，否则用NLP数据
+        if not self.context.question_category:
+            self.context.question_category = parsed_info.get("category")
+        if not self.context.random_numbers:
+            self.context.random_numbers = parsed_info.get("numbers", [])
 
         if progress_callback:
             progress_callback("小六壬", "正在用小六壬起卦...", 30)
@@ -262,12 +305,14 @@ class ConversationService:
             progress_callback("小六壬", "正在生成初步判断...", 50)
 
         interpretation = await self._interpret_xiaoliu(xiaoliu_result)
-        self.context.stage = ConversationStage.STAGE2_BASIC_INFO
+
+        # V2: 转到阶段2深入（测字术），而不是直接收集出生信息
+        self.context.stage = ConversationStage.STAGE2_DEEPEN
 
         if progress_callback:
             progress_callback("阶段1", "破冰阶段完成", 100)
 
-        # V2: 使用模板加载阶段1完成消息
+        # V2: 生成阶段1完成消息（追问具体描述+汉字）
         try:
             return load_prompt("conversation/stage1_complete.md", {
                 "category": self.context.question_category,
@@ -276,144 +321,295 @@ class ConversationService:
             })
         except FileNotFoundError:
             # 兜底：返回简单消息
-            return f"✅ 已收集：{self.context.question_category}，数字：{self.context.random_numbers}\n\n{interpretation}\n\n请提供出生信息。"
+            return f"""✅ 已收集：{self.context.question_category}，数字：{', '.join(map(str, self.context.random_numbers))}
 
-    async def _handle_stage2(self, user_message: str, progress_callback, theory_callback=None) -> str:
-        """阶段2：基础信息收集"""
+{interpretation}
+
+---
+
+请告诉我：
+1. 具体是什么事情？（简单描述即可）
+2. 想着这件事，脑海中浮现的第一个汉字是什么？（可以是心态、未来的憧憬、当下想做的动作等）"""
+
+    async def _handle_stage2_deepen(self, user_message: str, progress_callback, theory_callback=None) -> str:
+        """
+        V2新增：阶段2 深入 - 解析具体描述和汉字，测字术分析
+
+        输入：具体事情描述 + 汉字
+        输出：小六壬+测字术综合分析 + 追问生辰信息
+        """
         # 更新会话阶段
-        self._update_session_stage('stage2_basic_info')
+        self._update_session_stage('stage2_deepen')
 
         if progress_callback:
-            progress_callback("阶段2", "正在解析您的出生信息...", 60)
+            progress_callback("阶段2", "正在解析您的描述和汉字...", 20)
 
         # V2: FlowGuard输入验证
-        validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE2_BASIC_INFO")
+        validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE2_DEEPEN")
+        if validation_result.status == InputStatus.VALID:
+            self.context.question_description = validation_result.extracted_data.get("question_description", "")
+            self.context.character = validation_result.extracted_data.get("character")
+        else:
+            self.logger.debug(f"FlowGuard验证: {validation_result.status}")
+
+        # 如果FlowGuard没有提取到，尝试从消息中简单提取
+        if not self.context.question_description:
+            # 假设整条消息是描述
+            self.context.question_description = user_message[:200]
+
+        if not self.context.character:
+            # 尝试提取第一个汉字
+            self.context.character = self.flow_guard.validate_character(user_message)
+
+        # 如果仍然没有汉字，提示用户
+        if not self.context.character:
+            return """😅 抱歉，我没有找到您想测的汉字。
+
+请告诉我：想着这件事，脑海中浮现的第一个汉字是什么？
+
+例如：
+- "变" - 想要改变
+- "心" - 关于内心
+- "进" - 想要前进
+
+您也可以这样说："我想测'变'字" 或 "想到的字是变"""
+
+        if progress_callback:
+            progress_callback("测字术", "正在进行测字分析...", 40)
+
+        # V2: 通知理论开始
+        if theory_callback:
+            theory_callback('started', '测字术', None)
+
+        # V2: 执行测字术计算
+        try:
+            cezi_user_input = UserInput(
+                question_type=self.context.question_category,
+                question_description=self.context.question_description,
+                current_time=self.context.qigua_time or datetime.now()
+            )
+            # 测字术需要 character 字段
+            cezi_user_input.character = self.context.character
+
+            cezi_result = self.cezi_theory.calculate(cezi_user_input)
+            self.context.cezi_result = cezi_result
+
+            # V2: 通知理论完成
+            if theory_callback:
+                theory_callback('completed', '测字术', {
+                    'summary': cezi_result.get('简析', f"测'{self.context.character}'字完成"),
+                    'judgment': cezi_result.get('judgment', '平')
+                })
+        except Exception as e:
+            self.logger.error(f"测字术计算失败: {e}")
+            self.context.cezi_result = {"error": str(e), "character": self.context.character}
+            if theory_callback:
+                theory_callback('completed', '测字术', {
+                    'summary': f"测'{self.context.character}'字",
+                    'judgment': '平'
+                })
+
+        if progress_callback:
+            progress_callback("综合分析", "正在生成综合分析...", 60)
+
+        # V2: 生成小六壬+测字综合分析（AI生成）
+        combined_analysis = await self._generate_combined_analysis()
+
+        # V2: 转到阶段3信息收集
+        self.context.stage = ConversationStage.STAGE3_COLLECT
+
+        if progress_callback:
+            progress_callback("阶段2", "深入阶段完成", 100)
+
+        # V2: 生成阶段2完成消息（追问生辰信息）
+        try:
+            return load_prompt("conversation/stage2_complete.md", {
+                "character": self.context.character,
+                "description": self.context.question_description,
+                "combined_analysis": combined_analysis
+            })
+        except FileNotFoundError:
+            # 兜底：返回简单消息
+            return f"""✅ 已收集：测"{self.context.character}"字
+
+{combined_analysis}
+
+---
+
+请提供您的出生信息：
+1. 出生日期（可以说大概时间段或不记得）
+2. 性别
+3. MBTI类型（可选，不知道可跳过）"""
+
+    async def _generate_combined_analysis(self) -> str:
+        """V2新增：生成小六壬+测字综合分析"""
+        prompt = f"""你是一位精通小六壬和测字术的占卜师。请根据以下两种理论的结果，给出综合分析。
+
+问题类别：{self.context.question_category}
+具体事情：{self.context.question_description}
+
+【小六壬结果】
+{json.dumps(self.context.xiaoliu_result, ensure_ascii=False, indent=2)}
+
+【测字结果】
+测字：{self.context.character}
+{json.dumps(self.context.cezi_result, ensure_ascii=False, indent=2)}
+
+请生成综合分析（100-150字），融合两种理论的判断，给出初步建议。语气温和专业。
+"""
+        try:
+            return (await self.api_manager.call_api(
+                task_type="快速交互问答",
+                prompt=prompt,
+                enable_dual_verification=False
+            )).strip()
+        except Exception as e:
+            self.logger.error(f"综合分析生成失败: {e}")
+            return f"📍 小六壬落宫：{self.context.xiaoliu_result.get('时落宫', '未知')}，测字：{self.context.character}\n\n（系统繁忙，将在后续分析中补充详细解读）"
+
+    # ==================== 向后兼容：旧阶段处理器 ====================
+
+    async def _handle_stage2(self, user_message: str, progress_callback, theory_callback=None) -> str:
+        """[已废弃] 阶段2：基础信息收集 - 已合并到 _handle_stage3_collect"""
+        return await self._handle_stage3_collect(user_message, progress_callback, theory_callback)
+
+    async def _handle_stage3(self, user_message: str, progress_callback, theory_callback=None) -> str:
+        """[已废弃] 阶段3：深度补充 - 已合并到 _handle_stage3_collect"""
+        return await self._handle_stage3_collect(user_message, progress_callback, theory_callback)
+
+    async def _handle_stage4(self, user_message: str, progress_callback, theory_callback=None) -> str:
+        """[已废弃] 阶段4：结果验证 - 已重命名为 _handle_stage4_verify"""
+        return await self._handle_stage4_verify(user_message, progress_callback, theory_callback)
+
+    async def _handle_stage5(self, progress_callback, theory_callback=None) -> str:
+        """[已废弃] 阶段5：最终报告 - 已重命名为 _handle_stage5_report"""
+        return await self._handle_stage5_report(progress_callback, theory_callback)
+
+    # ==================== V2：新阶段处理器 ====================
+
+    async def _handle_stage3_collect(self, user_message: str, progress_callback, theory_callback=None) -> str:
+        """
+        V2：阶段3 信息收集 - 收集生辰+性别+MBTI，运行多理论分析
+
+        V2更新：
+        - 使用 STAGE3_COLLECT FlowGuard验证
+        - 生成六爻自动起卦数字
+        - 直接转到 STAGE4_VERIFY（不再有补充阶段）
+        """
+        # 更新会话阶段
+        self._update_session_stage('stage3_collect')
+
+        if progress_callback:
+            progress_callback("阶段3", "正在解析您的出生信息...", 60)
+
+        # V2: FlowGuard输入验证
+        validation_result = await self.flow_guard.validate_input_with_ai(user_message, "STAGE3_COLLECT")
         if validation_result.status == InputStatus.VALID:
             self.logger.info(f"FlowGuard验证通过，提取数据: {validation_result.extracted_data}")
+            # 提取颜色/方位（用于梅花易数）
+            if validation_result.extracted_data.get("favorite_color"):
+                self.context.favorite_color = validation_result.extracted_data["favorite_color"]
+            if validation_result.extracted_data.get("current_direction"):
+                self.context.current_direction = validation_result.extracted_data["current_direction"]
 
         birth_info = await self.nlp_parser.parse_birth_info(user_message)
         if not birth_info or "error" in birth_info:
-            return self._retry_msg("stage2")
+            return self._retry_msg("stage3")
 
         self.context.birth_info = birth_info
         self.context.gender = birth_info.get("gender")
         self.context.mbti_type = birth_info.get("mbti")
         self.context.time_certainty = birth_info.get("time_certainty", "unknown")
 
+        # V2: 生成六爻自动起卦数字
+        self.context.generate_liuyao_numbers()
+        self.logger.info(f"六爻自动起卦数字: {self.context.liuyao_numbers}")
+
         if progress_callback:
-            progress_callback("理论选择", "正在计算理论适配度...", 75)
+            progress_callback("多理论分析", "正在计算多理论结果...", 75)
 
-        theories_display = await self._calculate_theory_fitness(theory_callback)
-        need_supplement = self.context.time_certainty in ("uncertain", "unknown")
+        # 运行多理论分析
+        await self._run_deep_analysis(progress_callback, theory_callback)
 
-        self.context.stage = ConversationStage.STAGE3_SUPPLEMENT if need_supplement else ConversationStage.STAGE4_VERIFICATION
+        # V2: 生成回溯验证问题
+        if progress_callback:
+            progress_callback("验证问题", "正在生成回溯验证问题...", 85)
 
+        verification_questions = await self._generate_verification_questions()
+        self.context.verification_questions = verification_questions
+
+        # V2: 直接转到阶段4验证
+        self.context.stage = ConversationStage.STAGE4_VERIFY
+
+        # 构建响应
         birth_str = f"{birth_info.get('year')}年{birth_info.get('month')}月{birth_info.get('day')}日"
         if birth_info.get('hour') is not None:
             birth_str += f" {birth_info.get('hour')}时"
 
         time_status = {"certain": "✅ 确定", "uncertain": "⚠️ 不确定", "unknown": "❓ 未知"}.get(self.context.time_certainty, "未知")
 
-        # V2: 使用模板加载阶段2完成消息
-        try:
-            response = load_prompt("conversation/stage2_complete.md", {
-                "birth_str": birth_str,
-                "time_status": time_status,
-                "gender": self.context.gender or '未提供',
-                "mbti": self.context.mbti_type or '未提供',
-                "theories_display": theories_display
-            })
-        except FileNotFoundError:
-            response = f"✅ 出生信息：{birth_str}，时辰：{time_status}\n\n理论：{theories_display}"
-
-        if need_supplement:
-            # V2: 使用模板加载补充信息提示
-            try:
-                response += "\n" + load_prompt("conversation/supplement_prompt.md")
-            except FileNotFoundError:
-                response += "\n\n请补充：兄弟姐妹排行？脸型？几点入睡？"
-        else:
-            # V2: 使用模板加载验证提示
-            try:
-                response += "\n" + load_prompt("conversation/stage3_complete.md", {
-                    "hour_info": "",
-                    "category": self.context.question_category
-                })
-            except FileNotFoundError:
-                response += f"\n\n请简单回答：过去3年在{self.context.question_category}领域有无变化？"
-
-        return response
-
-    async def _handle_stage3(self, user_message: str, progress_callback, theory_callback=None) -> str:
-        """阶段3：深度补充 - 时辰推断"""
-        # 更新会话阶段
-        self._update_session_stage('stage3_supplement')
-
-        if progress_callback:
-            progress_callback("阶段3", "正在分析补充信息...", 80)
-
-        if self.context.time_certainty in ("uncertain", "unknown"):
-            inferred_hour = await self.nlp_parser.infer_birth_hour(user_message)
-            if inferred_hour is not None:
-                self.context.inferred_hour = inferred_hour
-                self.context.time_certainty = "inferred"
-                if self.context.birth_info:
-                    self.context.birth_info["hour"] = inferred_hour
-
-        # V2: 生成回溯验证问题
-        if progress_callback:
-            progress_callback("验证问题", "正在生成回溯验证问题...", 82)
-
-        verification_questions = await self._generate_verification_questions()
-        self.context.verification_questions = verification_questions
-
-        self.context.stage = ConversationStage.STAGE4_VERIFICATION
-
-        hour_info = ""
-        if self.context.inferred_hour is not None:
-            hour_names = {0: "子", 1: "丑", 3: "寅", 5: "卯", 7: "辰", 9: "巳", 11: "午", 13: "未", 15: "申", 17: "酉", 19: "戌", 21: "亥", 23: "子"}
-            hour_name = hour_names.get(self.context.inferred_hour, "未知")
-            hour_info = f"\n\n🔮 **推断时辰**：{hour_name}时（{self.context.inferred_hour}点）"
-
-        # V2: 构建包含验证问题的响应
+        # V2: 格式化验证问题
         questions_md = self._format_verification_questions(verification_questions)
 
         # V2: 使用模板加载阶段3完成消息
         try:
-            base_response = load_prompt("conversation/stage3_complete.md", {
-                "hour_info": hour_info,
-                "category": self.context.question_category
+            response = load_prompt("conversation/stage3_collect_complete.md", {
+                "birth_str": birth_str,
+                "time_status": time_status,
+                "gender": self.context.gender or '未提供',
+                "mbti": self.context.mbti_type or '未提供',
+                "questions": questions_md
             })
-            return base_response + "\n" + questions_md
         except FileNotFoundError:
-            return f"✅ 补充信息已收集{hour_info}\n\n{questions_md}"
+            response = f"""✅ 出生信息：{birth_str}，时辰：{time_status}
+性别：{self.context.gender or '未提供'}
+MBTI：{self.context.mbti_type or '未提供'}
 
-    async def _handle_stage4(self, user_message: str, progress_callback, theory_callback=None) -> str:
-        """阶段4：结果验证"""
+---
+
+多理论分析已完成。
+
+{questions_md}"""
+
+        return response
+
+    async def _handle_stage4_verify(self, user_message: str, progress_callback, theory_callback=None) -> str:
+        """
+        V2：阶段4 验证 - 处理回溯验证问题回答
+
+        V2更新：
+        - 使用 STAGE4_VERIFY FlowGuard验证
+        - 直接转到 STAGE5_REPORT
+        """
         # 更新会话阶段
-        self._update_session_stage('stage4_verification')
+        self._update_session_stage('stage4_verify')
 
         if progress_callback:
             progress_callback("阶段4", "正在分析验证反馈...", 85)
 
         feedback = await self.nlp_parser.parse_verification_feedback(
             user_message,
-            self.context.retrospective_events  # 传入回溯事件列表
+            self.context.retrospective_events
         )
         if feedback:
-            self.context.verification_feedback.append({"raw_message": user_message, "parsed_feedback": feedback})
+            self.context.verification_feedback.append({
+                "raw_message": user_message,
+                "parsed_feedback": feedback
+            })
             self._adjust_confidence(feedback)
 
-        if progress_callback:
-            progress_callback("深度分析", "正在进行深度分析...", 90)
+        # V2: 转到阶段5报告
+        self.context.stage = ConversationStage.STAGE5_REPORT
 
-        await self._run_deep_analysis(progress_callback, theory_callback)
-        self.context.stage = ConversationStage.STAGE5_FINAL_REPORT
+        return await self._handle_stage5_report(progress_callback, theory_callback)
 
-        return await self._handle_stage5(progress_callback, theory_callback)
+    async def _handle_stage5_report(self, progress_callback, theory_callback=None) -> str:
+        """
+        V2：阶段5 报告 - 生成综合分析报告
 
-    async def _handle_stage5(self, progress_callback, theory_callback=None) -> str:
-        """阶段5：生成最终报告"""
+        V2更新：
+        - 支持多轮AI思考生成个性化报告
+        """
         if progress_callback:
             progress_callback("报告生成", "正在生成综合分析报告...", 95)
 

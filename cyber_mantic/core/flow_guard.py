@@ -8,6 +8,11 @@ V2核心组件：监控对话流程，防止用户输入错误或跳过步骤
 - 跟踪进度，显示缺失信息
 - 支持错误恢复和重试
 
+V2更新：
+- 新增 STAGE2_DEEPEN 阶段（测字术）
+- 更新阶段名称映射
+- 新增汉字验证器
+
 设计理念：
 类似Claude Code的todo系统，让用户清楚看到：
 1. 当前在哪个阶段
@@ -101,8 +106,9 @@ class FlowGuard:
     5. 错误恢复
     """
 
-    # 各阶段的输入要求定义
+    # 各阶段的输入要求定义（V2更新）
     STAGE_REQUIREMENTS = {
+        # ===== 阶段1：破冰（小六壬）=====
         "STAGE1_ICEBREAK": [
             StageRequirement(
                 name="question_category",
@@ -113,14 +119,6 @@ class FlowGuard:
                 error_hint="请告诉我您想咨询什么类型的问题"
             ),
             StageRequirement(
-                name="question_description",
-                description="具体问题描述",
-                level=RequirementLevel.RECOMMENDED,
-                validator="validate_description",
-                example="最近在考虑是否要跳槽",
-                error_hint="简单描述一下您的具体问题"
-            ),
-            StageRequirement(
                 name="random_numbers",
                 description="3个随机数字(1-9)",
                 level=RequirementLevel.REQUIRED,
@@ -129,14 +127,36 @@ class FlowGuard:
                 error_hint="请提供3个1-9之间的随机数字，用于小六壬起卦"
             ),
         ],
-        "STAGE2_BASIC_INFO": [
+
+        # ===== 阶段2：深入（测字术）- V2新增 =====
+        "STAGE2_DEEPEN": [
+            StageRequirement(
+                name="question_description",
+                description="具体问题描述",
+                level=RequirementLevel.REQUIRED,
+                validator="validate_description",
+                example="想跳槽到互联网公司",
+                error_hint="请简单描述一下具体是什么事情"
+            ),
+            StageRequirement(
+                name="character",
+                description="测字用的汉字",
+                level=RequirementLevel.REQUIRED,
+                validator="validate_character",
+                example="变/心/动",
+                error_hint="想着这件事，脑海中浮现的第一个汉字是什么？（可以是心态、未来的憧憬、当下想做的动作等）"
+            ),
+        ],
+
+        # ===== 阶段3：信息收集（多理论）=====
+        "STAGE3_COLLECT": [
             StageRequirement(
                 name="birth_year",
                 description="出生年份",
                 level=RequirementLevel.REQUIRED,
                 validator="validate_year",
                 example="1990",
-                error_hint="请提供出生年份（如1990）"
+                error_hint="请提供出生年份（如1990）或说大概时间段"
             ),
             StageRequirement(
                 name="birth_month",
@@ -157,10 +177,10 @@ class FlowGuard:
             StageRequirement(
                 name="birth_hour",
                 description="出生时辰",
-                level=RequirementLevel.RECOMMENDED,
+                level=RequirementLevel.OPTIONAL,  # V2改为可选：可以说大概时间段或不记得
                 validator="validate_hour",
                 example="下午3点 / 15点 / 不记得",
-                error_hint="如果知道出生时间请提供，不记得也没关系"
+                error_hint="可以说大概时间段或不记得"
             ),
             StageRequirement(
                 name="gender",
@@ -171,58 +191,47 @@ class FlowGuard:
                 error_hint="请提供性别"
             ),
             StageRequirement(
-                name="calendar_type",
-                description="历法类型",
-                level=RequirementLevel.RECOMMENDED,
-                validator="validate_calendar",
-                example="公历/农历",
-                error_hint="请说明是公历还是农历"
-            ),
-            StageRequirement(
                 name="mbti_type",
                 description="MBTI类型",
                 level=RequirementLevel.OPTIONAL,
                 validator="validate_mbti",
                 example="INTJ/ENFP等",
-                error_hint="如果知道您的MBTI类型可以提供"
+                error_hint="如果知道您的MBTI类型可以提供，不知道可跳过"
             ),
             StageRequirement(
-                name="birth_place",
-                description="出生地点",
+                name="favorite_color",
+                description="喜欢的颜色",
                 level=RequirementLevel.OPTIONAL,
-                validator="validate_place",
-                example="北京/上海",
-                error_hint="出生城市（用于真太阳时计算）"
+                validator="validate_color",
+                example="红/蓝/绿",
+                error_hint="您喜欢什么颜色？（用于梅花易数起卦，可选）"
+            ),
+            StageRequirement(
+                name="current_direction",
+                description="当前方位",
+                level=RequirementLevel.OPTIONAL,
+                validator="validate_direction",
+                example="东/南/西/北",
+                error_hint="您现在面向什么方位？（用于梅花易数起卦，可选）"
             ),
         ],
-        "STAGE3_SUPPLEMENT": [
+
+        # ===== 阶段4：验证（回溯问题）=====
+        "STAGE4_VERIFY": [
             StageRequirement(
-                name="time_certainty",
-                description="时辰确定性",
-                level=RequirementLevel.RECOMMENDED,
-                validator="validate_certainty",
-                example="确定/大概/不确定",
-                error_hint="请告诉我您对出生时间的确定程度"
-            ),
-            StageRequirement(
-                name="life_events",
-                description="重大生活事件",
-                level=RequirementLevel.OPTIONAL,
-                validator="validate_events",
-                example="2020年换了工作",
-                error_hint="可以提供一些过去的重大事件帮助验证"
-            ),
-        ],
-        "STAGE4_VERIFICATION": [
-            StageRequirement(
-                name="event_feedback",
-                description="事件验证反馈",
+                name="verification_feedback",
+                description="验证问题反馈",
                 level=RequirementLevel.REQUIRED,
                 validator="validate_feedback",
                 example="是的/不对/部分准确",
-                error_hint="请告诉我这些分析是否准确"
+                error_hint="请回答验证问题，帮助我们提高分析准确度"
             ),
         ],
+
+        # ===== 向后兼容：旧阶段名映射 =====
+        "STAGE2_BASIC_INFO": [],  # 已移至 STAGE3_COLLECT
+        "STAGE3_SUPPLEMENT": [],  # 已合并
+        "STAGE4_VERIFICATION": [],  # 已移至 STAGE4_VERIFY
     }
 
     # 类别关键词映射
@@ -610,16 +619,41 @@ class FlowGuard:
                 lines.append(f"   示例：{req.example}")
             lines.append("")
 
-        # 添加整合示例
+        # 添加整合示例（V2更新）
         if stage == "STAGE1_ICEBREAK":
             lines.extend([
                 "---",
                 "💡 **您可以这样说**：",
                 "```",
-                "我想咨询事业，最近在考虑是否要跳槽",
-                "数字是：7、3、5",
+                "我想咨询事业，数字是：7、3、5",
                 "```"
             ])
+        elif stage == "STAGE2_DEEPEN":
+            lines.extend([
+                "---",
+                "💡 **您可以这样说**：",
+                "```",
+                "最近在考虑是否要跳槽到互联网公司",
+                "想到的字是"变"",
+                "```"
+            ])
+        elif stage == "STAGE3_COLLECT":
+            lines.extend([
+                "---",
+                "💡 **您可以这样说**：",
+                "```",
+                "我是1990年5月15日出生的，男，时辰不太记得了",
+                "MBTI是INTJ，喜欢蓝色",
+                "```",
+                "（时辰、MBTI、颜色都是可选的）"
+            ])
+        elif stage == "STAGE4_VERIFY":
+            lines.extend([
+                "---",
+                "💡 **请回答验证问题**：",
+                "直接回答 是/否/部分准确 即可"
+            ])
+        # 向后兼容
         elif stage == "STAGE2_BASIC_INFO":
             lines.extend([
                 "---",
@@ -865,12 +899,92 @@ class FlowGuard:
             return "partial"
         return None
 
+    def validate_character(self, text: str) -> Optional[str]:
+        """
+        V2新增：验证测字用的汉字
+
+        提取优先级：
+        1. "测X字" 格式
+        2. 引号内的单字
+        3. 第一个汉字
+        """
+        # 1. 匹配 "测X字" 格式
+        match = re.search(r'测[「「\'\""]?([\u4e00-\u9fa5])[」」\'\""]?字', text)
+        if match:
+            return match.group(1)
+
+        # 2. 匹配引号内的汉字
+        match = re.search(r'[「「\'\""]+([\u4e00-\u9fa5])[」」\'\""]+', text)
+        if match:
+            return match.group(1)
+
+        # 3. 提取第一个独立的汉字（排除常见的语气词）
+        exclude_chars = set("的了吧呢啊哦嗯是不我你他她它们这那")
+        for char in text:
+            if '\u4e00' <= char <= '\u9fa5' and char not in exclude_chars:
+                return char
+
+        return None
+
+    def validate_color(self, text: str) -> Optional[str]:
+        """
+        V2新增：验证颜色（用于梅花易数起卦）
+        """
+        # 颜色关键词映射
+        color_keywords = {
+            "红": ["红", "红色", "赤", "朱红", "大红"],
+            "橙": ["橙", "橙色", "橘色"],
+            "黄": ["黄", "黄色", "金色", "金黄"],
+            "绿": ["绿", "绿色", "青色"],
+            "蓝": ["蓝", "蓝色", "湛蓝"],
+            "紫": ["紫", "紫色", "紫红"],
+            "白": ["白", "白色"],
+            "黑": ["黑", "黑色"],
+            "灰": ["灰", "灰色"],
+            "粉": ["粉", "粉色", "粉红"],
+        }
+
+        text_lower = text.lower()
+        for color, keywords in color_keywords.items():
+            if any(kw in text_lower for kw in keywords):
+                return color
+
+        return None
+
+    def validate_direction(self, text: str) -> Optional[str]:
+        """
+        V2新增：验证方位（用于梅花易数起卦）
+        """
+        # 方位关键词映射
+        direction_keywords = {
+            "东": ["东", "东方", "东边", "东面"],
+            "南": ["南", "南方", "南边", "南面"],
+            "西": ["西", "西方", "西边", "西面"],
+            "北": ["北", "北方", "北边", "北面"],
+            "东南": ["东南"],
+            "东北": ["东北"],
+            "西南": ["西南"],
+            "西北": ["西北"],
+        }
+
+        for direction, keywords in direction_keywords.items():
+            if any(kw in text for kw in keywords):
+                return direction
+
+        return None
+
     # ==================== 辅助方法 ====================
 
     def _get_stage_display_name(self, stage: str) -> str:
-        """获取阶段显示名称"""
+        """获取阶段显示名称（V2更新）"""
         names = {
-            "STAGE1_ICEBREAK": "破冰阶段",
+            # V2新阶段名称
+            "STAGE1_ICEBREAK": "阶段1：破冰",
+            "STAGE2_DEEPEN": "阶段2：深入",
+            "STAGE3_COLLECT": "阶段3：信息收集",
+            "STAGE4_VERIFY": "阶段4：验证",
+            "STAGE5_REPORT": "阶段5：报告",
+            # 向后兼容旧阶段名
             "STAGE2_BASIC_INFO": "基础信息收集",
             "STAGE3_SUPPLEMENT": "深度补充",
             "STAGE4_VERIFICATION": "结果验证",
