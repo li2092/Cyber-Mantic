@@ -340,12 +340,12 @@ class FlowGuard:
         stage: Optional[str] = None
     ) -> ValidationResult:
         """
-        使用AI增强的验证（代码验证 + AI备用）
+        V2重构：使用AI优先的验证（AI优先，代码后备）
 
         流程：
-        1. 先使用代码验证器
-        2. 如果代码验证失败或不完整，使用AI验证
-        3. AI验证结果与代码结果合并
+        1. 如果有AI能力，先用AI验证
+        2. AI失败或提取不完整时，用代码验证补充
+        3. 如果没有AI能力，直接用代码验证
 
         Args:
             user_message: 用户消息
@@ -354,54 +354,80 @@ class FlowGuard:
         Returns:
             ValidationResult
         """
-        # 1. 先用代码验证
-        code_result = self.validate_input(user_message, stage)
+        stage = stage or self.current_stage
+        requirements = self.STAGE_REQUIREMENTS.get(stage, [])
 
-        # 如果代码验证成功，直接返回
-        if code_result.status == InputStatus.VALID:
-            return code_result
+        if not requirements:
+            return ValidationResult(
+                status=InputStatus.VALID,
+                message="当前阶段无特定要求"
+            )
 
-        # 如果没有AI能力，返回代码验证结果
-        if not self.ai_validation_enabled or not self.api_manager:
-            return code_result
+        # ===== AI优先验证 =====
+        ai_extracted = {}
+        if self.ai_validation_enabled and self.api_manager:
+            try:
+                self.logger.debug(f"[FlowGuard] 使用AI验证用户输入: {user_message[:50]}...")
+                ai_extracted = await self._ai_validate(user_message, stage) or {}
+                if ai_extracted:
+                    self.logger.info(f"[FlowGuard] AI成功提取: {list(ai_extracted.keys())}")
+            except Exception as e:
+                self.logger.warning(f"[FlowGuard] AI验证失败，回退到代码验证: {e}")
 
-        # 2. 使用AI增强验证
-        try:
-            ai_extracted = await self._ai_validate(user_message, stage)
+        # ===== 代码后备验证（补充AI未提取的字段） =====
+        code_extracted = {}
+        for req in requirements:
+            # 如果AI已提取该字段，跳过代码验证
+            if req.name in ai_extracted:
+                continue
 
-            if ai_extracted:
-                # 合并AI提取的数据
-                merged_data = {**code_result.extracted_data, **ai_extracted}
-                self.collected_data.update(ai_extracted)
+            # 使用代码验证器尝试提取
+            validator = getattr(self, req.validator, None)
+            if validator:
+                value = validator(user_message)
+                if value is not None:
+                    code_extracted[req.name] = value
+                    self.logger.debug(f"[FlowGuard] 代码后备提取: {req.name} = {value}")
 
-                # 重新检查是否满足要求
-                stage = stage or self.current_stage
-                requirements = self.STAGE_REQUIREMENTS.get(stage, [])
-                required = [r for r in requirements if r.level == RequirementLevel.REQUIRED]
-                missing = [r for r in required if r.name not in self.collected_data]
+        # ===== 合并结果 =====
+        merged_data = {**code_extracted, **ai_extracted}  # AI结果优先
+        self.collected_data.update(merged_data)
 
-                if not missing:
-                    return ValidationResult(
-                        status=InputStatus.VALID,
-                        message="信息收集完成（AI辅助识别）",
-                        extracted_data=merged_data,
-                        suggestions=[],
-                        can_retry=True
-                    )
-                else:
-                    return ValidationResult(
-                        status=InputStatus.INCOMPLETE,
-                        message=f"AI识别了部分信息，还需要：{', '.join([m.description for m in missing])}",
-                        extracted_data=merged_data,
-                        suggestions=[f"💡 {m.error_hint}" for m in missing],
-                        can_retry=True
-                    )
+        # 更新需求状态
+        for req in requirements:
+            if req.name in merged_data:
+                req.collected = True
+                req.value = merged_data[req.name]
 
-        except Exception as e:
-            self.logger.warning(f"AI验证失败: {e}")
+        # ===== 检查是否满足要求 =====
+        required = [r for r in requirements if r.level == RequirementLevel.REQUIRED]
+        missing = [r for r in required if r.name not in self.collected_data]
 
-        # AI也失败了，返回代码验证结果
-        return code_result
+        if not missing:
+            source = "AI" if ai_extracted else "代码"
+            return ValidationResult(
+                status=InputStatus.VALID,
+                message=f"信息收集完成（{source}识别）",
+                extracted_data=merged_data,
+                suggestions=[],
+                can_retry=True
+            )
+        elif merged_data:
+            return ValidationResult(
+                status=InputStatus.INCOMPLETE,
+                message=f"已收集部分信息，还需要：{', '.join([m.description for m in missing])}",
+                extracted_data=merged_data,
+                suggestions=[f"💡 {m.error_hint}（示例：{m.example}）" for m in missing],
+                can_retry=True
+            )
+        else:
+            return ValidationResult(
+                status=InputStatus.INVALID,
+                message="未能识别有效信息，请按照提示重新输入",
+                extracted_data={},
+                suggestions=[f"💡 {r.error_hint}（示例：{r.example}）" for r in required],
+                can_retry=True
+            )
 
     async def _ai_validate(
         self,
