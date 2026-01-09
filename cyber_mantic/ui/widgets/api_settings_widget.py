@@ -180,13 +180,16 @@ class TaskAPISettings(QGroupBox):
 
     def _setup_ui(self):
         """设置UI"""
+        is_dark = self.theme == "dark"
+        desc_color = "#94A3B8" if is_dark else "#64748B"
+
         layout = QVBoxLayout()
         layout.setSpacing(8)
 
         # 说明
         desc = QLabel("为不同任务环节配置不同的API（留空表示使用全局配置）")
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        desc.setStyleSheet(f"color: {desc_color}; font-size: 12px;")
         layout.addWidget(desc)
 
         # 任务配置表格
@@ -270,13 +273,16 @@ class APIKeySettings(QGroupBox):
 
     def _setup_ui(self):
         """设置UI"""
+        is_dark = self.theme == "dark"
+        desc_color = "#94A3B8" if is_dark else "#64748B"
+
         layout = QVBoxLayout()
         layout.setSpacing(8)
 
         # 说明
         desc = QLabel("配置各API密钥（也可通过环境变量设置）")
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        desc.setStyleSheet(f"color: {desc_color}; font-size: 12px;")
         layout.addWidget(desc)
 
         for api_id, api_name, env_var in self.API_LIST:
@@ -373,6 +379,9 @@ class APISettingsWidget(QWidget):
 
     def _setup_ui(self):
         """设置UI"""
+        is_dark = self.theme == "dark"
+        title_color = "#C4B5FD" if is_dark else "#7C3AED"
+
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
@@ -383,7 +392,7 @@ class APISettingsWidget(QWidget):
         title_font.setPointSize(16)
         title_font.setWeight(QFont.Weight.Bold)
         title.setFont(title_font)
-        title.setStyleSheet("color: #C4B5FD;")
+        title.setStyleSheet(f"color: {title_color};")
         layout.addWidget(title)
 
         # 创建标签页

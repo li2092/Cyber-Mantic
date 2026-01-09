@@ -19,13 +19,22 @@ class ProgressWidget(QWidget):
     # 信号：进度完成
     completed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, theme: str = "dark", parent=None):
         super().__init__(parent)
+        self.theme = theme
         self.current_progress = 0
         self._setup_ui()
 
     def _setup_ui(self):
         """设置UI"""
+        is_dark = self.theme == "dark"
+
+        # 主题相关颜色
+        stage_color = "#5E9EA0" if is_dark else "#0D9488"
+        progress_border = "#3B82F6" if is_dark else "#BBDEFB"
+        progress_bg = "#1E293B" if is_dark else "#F5F5F5"
+        progress_text = "#E2E8F0" if is_dark else "#1E293B"
+
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -45,7 +54,7 @@ class ProgressWidget(QWidget):
         stage_font.setPointSize(10)
         self.stage_label.setFont(stage_font)
         self.stage_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.stage_label.setStyleSheet("color: #5E9EA0;")
+        self.stage_label.setStyleSheet(f"color: {stage_color};")
         layout.addWidget(self.stage_label)
 
         # 进度条
@@ -54,22 +63,23 @@ class ProgressWidget(QWidget):
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 2px solid #BBDEFB;
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: 2px solid {progress_border};
                 border-radius: 8px;
                 text-align: center;
                 height: 28px;
-                background-color: #F5F5F5;
-            }
-            QProgressBar::chunk {
+                background-color: {progress_bg};
+                color: {progress_text};
+            }}
+            QProgressBar::chunk {{
                 background: qlineargradient(
                     x1:0, y1:0, x2:1, y2:0,
                     stop:0 #64B5F6,
                     stop:1 #81C784
                 );
                 border-radius: 6px;
-            }
+            }}
         """)
         layout.addWidget(self.progress_bar)
 
@@ -300,20 +310,26 @@ class ProgressWidget(QWidget):
 
     def show_error(self, error_message: str):
         """显示错误状态"""
+        is_dark = self.theme == "dark"
+        error_border = "#F87171" if is_dark else "#FFCDD2"
+        error_bg = "#1E293B" if is_dark else "#F5F5F5"
+        error_text = "#FCA5A5" if is_dark else "#1E293B"
+
         self.title_label.setText("❌ 分析失败")
         self.stage_label.setText("")
         self.detail_label.setText(error_message)
         self.time_label.setText("")
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 2px solid #FFCDD2;
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: 2px solid {error_border};
                 border-radius: 8px;
                 text-align: center;
                 height: 28px;
-                background-color: #F5F5F5;
-            }
-            QProgressBar::chunk {
+                background-color: {error_bg};
+                color: {error_text};
+            }}
+            QProgressBar::chunk {{
                 background-color: #EF5350;
                 border-radius: 6px;
-            }
+            }}
         """)

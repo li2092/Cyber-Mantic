@@ -40,8 +40,8 @@ class QuickResultCard(QFrame):
     # 信号：卡片被点击（展开详情）
     clicked = pyqtSignal(str)  # 发送theory_name
 
-    # 状态样式配置
-    STATUS_STYLES = {
+    # 状态样式配置 - 深色主题
+    STATUS_STYLES_DARK = {
         CardStatus.WAITING: {
             "border": "#4B5563",
             "bg": "#1F2937",
@@ -79,6 +79,53 @@ class QuickResultCard(QFrame):
             "text": "#9CA3AF"
         },
     }
+
+    # 状态样式配置 - 浅色主题
+    STATUS_STYLES_LIGHT = {
+        CardStatus.WAITING: {
+            "border": "#D1D5DB",
+            "bg": "#F3F4F6",
+            "icon": "⬚",
+            "text": "#6B7280"
+        },
+        CardStatus.RUNNING: {
+            "border": "#3B82F6",
+            "bg": "#EFF6FF",
+            "icon": "⏳",
+            "text": "#1D4ED8"
+        },
+        CardStatus.COMPLETED_GOOD: {
+            "border": "#10B981",
+            "bg": "#ECFDF5",
+            "icon": "✅",
+            "text": "#047857"
+        },
+        CardStatus.COMPLETED_BAD: {
+            "border": "#EF4444",
+            "bg": "#FEF2F2",
+            "icon": "⚠️",
+            "text": "#B91C1C"
+        },
+        CardStatus.COMPLETED_NEUTRAL: {
+            "border": "#F59E0B",
+            "bg": "#FFFBEB",
+            "icon": "➖",
+            "text": "#B45309"
+        },
+        CardStatus.ERROR: {
+            "border": "#9CA3AF",
+            "bg": "#F3F4F6",
+            "icon": "❌",
+            "text": "#6B7280"
+        },
+    }
+
+    @classmethod
+    def get_status_styles(cls, theme: str = "dark"):
+        """根据主题获取状态样式"""
+        if theme == "light":
+            return cls.STATUS_STYLES_LIGHT
+        return cls.STATUS_STYLES_DARK
 
     def __init__(self, theory_name: str, theme: str = "dark", parent=None):
         super().__init__(parent)
@@ -143,7 +190,8 @@ class QuickResultCard(QFrame):
 
     def _apply_style(self):
         """应用当前状态的样式"""
-        style = self.STATUS_STYLES.get(self.status, self.STATUS_STYLES[CardStatus.WAITING])
+        styles = self.get_status_styles(self.theme)
+        style = styles.get(self.status, styles[CardStatus.WAITING])
 
         self.setStyleSheet(f"""
             QFrame#quickResultCard {{
@@ -171,6 +219,11 @@ class QuickResultCard(QFrame):
             b = min(255, int(hex_color[5:7], 16) + 20)
             return f"#{r:02x}{g:02x}{b:02x}"
         return hex_color
+
+    def set_theme(self, theme: str):
+        """设置主题并重新应用样式"""
+        self.theme = theme
+        self._apply_style()
 
     def set_waiting(self):
         """设置为等待状态"""
@@ -283,14 +336,14 @@ class QuickResultPanel(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        # 标题
-        title_label = QLabel("🔮 理论分析进度")
+        # 标题 - 根据主题设置颜色
+        self.title_label = QLabel("🔮 理论分析进度")
         title_font = QFont()
         title_font.setPointSize(11)
         title_font.setWeight(QFont.Weight.Bold)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #E2E8F0; padding: 4px 0; background: transparent;")
-        layout.addWidget(title_label)
+        self.title_label.setFont(title_font)
+        self._apply_title_style()
+        layout.addWidget(self.title_label)
 
         # 创建各理论卡片
         for theory in self.THEORIES:
@@ -301,6 +354,18 @@ class QuickResultPanel(QFrame):
 
         layout.addStretch()
         self.setLayout(layout)
+
+    def _apply_title_style(self):
+        """应用标题样式"""
+        title_color = "#1e293b" if self.theme == "light" else "#E2E8F0"
+        self.title_label.setStyleSheet(f"color: {title_color}; padding: 4px 0; background: transparent;")
+
+    def set_theme(self, theme: str):
+        """设置主题并更新所有卡片"""
+        self.theme = theme
+        self._apply_title_style()
+        for card in self.cards.values():
+            card.set_theme(theme)
 
     def _on_card_clicked(self, theory_name: str):
         """卡片点击处理"""

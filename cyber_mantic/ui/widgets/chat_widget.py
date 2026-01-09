@@ -30,29 +30,46 @@ def escape_html(text: str) -> str:
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
-def process_inline_markdown(text: str) -> str:
+def process_inline_markdown(text: str, theme: str = "dark") -> str:
     """处理行内Markdown格式（加粗、斜体、代码等）"""
+    # 主题相关颜色
+    is_dark = theme == "dark"
+    strong_color = "#E2E8F0" if is_dark else "#1E293B"
+    code_bg = "#1E1E2E" if is_dark else "#F1F5F9"
+    code_color = "#E2E8F0" if is_dark else "#334155"
+
     # 先转义HTML
     text = escape_html(text)
 
     # 加粗 **text** 或 __text__
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong style="color: #E2E8F0;">\1</strong>', text)
-    text = re.sub(r'__(.+?)__', r'<strong style="color: #E2E8F0;">\1</strong>', text)
+    text = re.sub(r'\*\*(.+?)\*\*', rf'<strong style="color: {strong_color};">\1</strong>', text)
+    text = re.sub(r'__(.+?)__', rf'<strong style="color: {strong_color};">\1</strong>', text)
 
     # 斜体 *text* 或 _text_（注意不要和加粗冲突）
     text = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<em>\1</em>', text)
     text = re.sub(r'(?<!_)_([^_]+?)_(?!_)', r'<em>\1</em>', text)
 
     # 行内代码 `code`
-    text = re.sub(r'`([^`]+?)`', r'<code style="background: #1E1E2E; padding: 2px 6px; border-radius: 4px; font-family: monospace;">\1</code>', text)
+    text = re.sub(r'`([^`]+?)`', rf'<code style="background: {code_bg}; color: {code_color}; padding: 2px 6px; border-radius: 4px; font-family: monospace;">\1</code>', text)
 
     return text
 
 
-def markdown_to_styled_html(content: str) -> str:
+def markdown_to_styled_html(content: str, theme: str = "dark") -> str:
     """将Markdown转换为带样式的HTML（保持打字动画和最终效果一致）"""
     if not content:
         return ""
+
+    # 主题相关颜色
+    is_dark = theme == "dark"
+    code_block_bg = "#1E1E2E" if is_dark else "#F1F5F9"
+    code_block_text = "#E2E8F0" if is_dark else "#334155"
+    h1_color = "#DDD6FE" if is_dark else "#6D28D9"
+    h2_color = "#C4B5FD" if is_dark else "#7C3AED"
+    h3_color = "#A78BFA" if is_dark else "#8B5CF6"
+    quote_border = "#6366F1"
+    quote_text = "#94A3B8" if is_dark else "#64748B"
+    hr_color = "#4B5563" if is_dark else "#E2E8F0"
 
     lines = content.split('\n')
     html_lines = []
@@ -65,7 +82,7 @@ def markdown_to_styled_html(content: str) -> str:
                 html_lines.append('</pre>')
                 in_code_block = False
             else:
-                html_lines.append('<pre style="background: #1E1E2E; padding: 8px; border-radius: 6px; margin: 4px 0; overflow-x: auto; font-family: monospace; font-size: 0.9em;">')
+                html_lines.append(f'<pre style="background: {code_block_bg}; color: {code_block_text}; padding: 8px; border-radius: 6px; margin: 4px 0; overflow-x: auto; font-family: monospace; font-size: 0.9em;">')
                 in_code_block = True
             continue
 
@@ -76,18 +93,18 @@ def markdown_to_styled_html(content: str) -> str:
         # 处理标题
         if line.startswith('### '):
             text = line[4:]
-            html_lines.append(f'<p style="font-weight: bold; font-size: 1.1em; margin: 8px 0 4px 0; color: #A78BFA;">{escape_html(text)}</p>')
+            html_lines.append(f'<p style="font-weight: bold; font-size: 1.1em; margin: 8px 0 4px 0; color: {h3_color};">{escape_html(text)}</p>')
         elif line.startswith('## '):
             text = line[3:]
-            html_lines.append(f'<p style="font-weight: bold; font-size: 1.2em; margin: 10px 0 6px 0; color: #C4B5FD;">{escape_html(text)}</p>')
+            html_lines.append(f'<p style="font-weight: bold; font-size: 1.2em; margin: 10px 0 6px 0; color: {h2_color};">{escape_html(text)}</p>')
         elif line.startswith('# '):
             text = line[2:]
-            html_lines.append(f'<p style="font-weight: bold; font-size: 1.3em; margin: 12px 0 8px 0; color: #DDD6FE;">{escape_html(text)}</p>')
+            html_lines.append(f'<p style="font-weight: bold; font-size: 1.3em; margin: 12px 0 8px 0; color: {h1_color};">{escape_html(text)}</p>')
         # 处理列表项
         elif line.strip().startswith('- ') or line.strip().startswith('* '):
             indent = len(line) - len(line.lstrip())
             text = line.strip()[2:]
-            text = process_inline_markdown(text)
+            text = process_inline_markdown(text, theme)
             margin_left = 16 + (indent // 2) * 12
             html_lines.append(f'<p style="margin: 2px 0 2px {margin_left}px;">• {text}</p>')
         elif re.match(r'^\d+\.\s', line.strip()):
@@ -95,18 +112,18 @@ def markdown_to_styled_html(content: str) -> str:
             match = re.match(r'^(\d+)\.\s(.*)$', line.strip())
             if match:
                 num = match.group(1)
-                text = process_inline_markdown(match.group(2))
+                text = process_inline_markdown(match.group(2), theme)
                 html_lines.append(f'<p style="margin: 2px 0 2px 16px;">{num}. {text}</p>')
         # 处理引用
         elif line.startswith('> '):
-            text = process_inline_markdown(line[2:])
-            html_lines.append(f'<p style="border-left: 3px solid #6366F1; padding-left: 12px; margin: 4px 0; color: #94A3B8; font-style: italic;">{text}</p>')
+            text = process_inline_markdown(line[2:], theme)
+            html_lines.append(f'<p style="border-left: 3px solid {quote_border}; padding-left: 12px; margin: 4px 0; color: {quote_text}; font-style: italic;">{text}</p>')
         # 处理分割线
         elif line.strip() in ('---', '***', '___'):
-            html_lines.append('<hr style="border: none; border-top: 1px solid #4B5563; margin: 8px 0;">')
+            html_lines.append(f'<hr style="border: none; border-top: 1px solid {hr_color}; margin: 8px 0;">')
         # 普通段落
         elif line.strip():
-            text = process_inline_markdown(line)
+            text = process_inline_markdown(line, theme)
             html_lines.append(f'<p style="margin: 4px 0; line-height: 1.6;">{text}</p>')
         else:
             # 空行
@@ -237,7 +254,8 @@ class TypewriterAnimation:
     """
 
     def __init__(self, text_browser, content: str, is_markdown: bool = True,
-                 char_delay: int = 12, newline_delay: int = 80, chunk_size: int = 5):
+                 char_delay: int = 12, newline_delay: int = 80, chunk_size: int = 5,
+                 theme: str = "dark"):
         """
         初始化打字机动画
 
@@ -248,6 +266,7 @@ class TypewriterAnimation:
             char_delay: 每组字符的延迟（毫秒）
             newline_delay: 换行时的额外延迟（毫秒）
             chunk_size: 每次显示的字符数（减少渲染频率）
+            theme: 主题 ("dark" 或 "light")
         """
         self.text_browser = text_browser
         self.full_content = content
@@ -255,6 +274,7 @@ class TypewriterAnimation:
         self.char_delay = char_delay
         self.newline_delay = newline_delay
         self.chunk_size = chunk_size
+        self.theme = theme
         self.current_index = 0
         self.timer = QTimer()
         self.timer.timeout.connect(self._type_next_chunk)
@@ -347,8 +367,8 @@ class TypewriterAnimation:
     def _show_full_content(self):
         """显示完整内容（优化的Markdown渲染）"""
         if self.is_markdown:
-            # 使用全局函数进行优化的HTML渲染
-            html = markdown_to_styled_html(self.full_content)
+            # 使用全局函数进行优化的HTML渲染（传入主题）
+            html = markdown_to_styled_html(self.full_content, self.theme)
             self.text_browser.setHtml(html)
         else:
             escaped = escape_html(self.full_content)
@@ -558,12 +578,13 @@ class ChatBubble(QFrame):
                         self.message.content,
                         is_markdown=True,
                         char_delay=15,
-                        newline_delay=100
+                        newline_delay=100,
+                        theme=self.theme
                     )
                     self.typewriter.start()
                 else:
-                    # 使用优化的HTML渲染
-                    html = markdown_to_styled_html(self.message.content)
+                    # 使用优化的HTML渲染（传入主题）
+                    html = markdown_to_styled_html(self.message.content, self.theme)
                     self.content_browser.setHtml(html)
 
                 bubble_layout.addWidget(self.content_browser)

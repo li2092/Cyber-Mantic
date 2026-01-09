@@ -21,8 +21,9 @@ class OnboardingDialog(QDialog):
     # 信号：引导完成
     completed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, theme: str = "light", parent=None):
         super().__init__(parent)
+        self.theme = theme
         self.setWindowTitle("欢迎使用赛博玄数")
         self.setMinimumSize(650, 500)
         self.setModal(True)
@@ -138,6 +139,14 @@ class OnboardingDialog(QDialog):
 
     def _create_step_page(self, icon: str, title: str, subtitle: str, description: str) -> QWidget:
         """创建步骤页面"""
+        is_dark = self.theme == "dark"
+
+        # 主题相关颜色
+        title_color = "#E2E8F0" if is_dark else "#333"
+        subtitle_color = "#94A3B8" if is_dark else "#666"
+        desc_bg = "#1E293B" if is_dark else "#f8f9fa"
+        desc_color = "#CBD5E1" if is_dark else "#444"
+
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(40, 30, 40, 30)
@@ -156,12 +165,12 @@ class OnboardingDialog(QDialog):
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("color: #333;")
+        title_label.setStyleSheet(f"color: {title_color};")
         layout.addWidget(title_label)
 
         # 副标题
         subtitle_label = QLabel(subtitle)
-        subtitle_label.setStyleSheet("color: #666; font-size: 16px;")
+        subtitle_label.setStyleSheet(f"color: {subtitle_color}; font-size: 16px;")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle_label)
 
@@ -169,17 +178,17 @@ class OnboardingDialog(QDialog):
 
         # 描述
         desc_frame = QFrame()
-        desc_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
+        desc_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {desc_bg};
                 border-radius: 10px;
                 padding: 20px;
-            }
+            }}
         """)
         desc_layout = QVBoxLayout(desc_frame)
         desc_label = QLabel(description)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #444; font-size: 14px; line-height: 1.6;")
+        desc_label.setStyleSheet(f"color: {desc_color}; font-size: 14px; line-height: 1.6;")
         desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         desc_layout.addWidget(desc_label)
         layout.addWidget(desc_frame)
@@ -190,13 +199,26 @@ class OnboardingDialog(QDialog):
 
     def _create_footer(self) -> QWidget:
         """创建底部导航"""
+        is_dark = self.theme == "dark"
+        footer_bg = "#1E293B" if is_dark else "#fff"
+        footer_border = "#334155" if is_dark else "#eee"
+
         footer = QFrame()
-        footer.setStyleSheet("""
-            QFrame {
-                background-color: #fff;
-                border-top: 1px solid #eee;
-            }
+        footer.setStyleSheet(f"""
+            QFrame {{
+                background-color: {footer_bg};
+                border-top: 1px solid {footer_border};
+            }}
         """)
+
+        # 主题相关颜色 - 按钮
+        dot_inactive = "#4B5563" if is_dark else "#ddd"
+        skip_color = "#64748B" if is_dark else "#999"
+        skip_hover = "#94A3B8" if is_dark else "#666"
+        prev_border = "#4B5563" if is_dark else "#ddd"
+        prev_bg = "#1E293B" if is_dark else "#fff"
+        prev_color = "#94A3B8" if is_dark else "#666"
+        prev_hover_bg = "#334155" if is_dark else "#f5f5f5"
 
         layout = QVBoxLayout(footer)
         layout.setContentsMargins(30, 15, 30, 20)
@@ -207,9 +229,10 @@ class OnboardingDialog(QDialog):
         progress_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._progress_dots = []
+        self._dot_inactive_color = dot_inactive
         for i in range(len(self._steps)):
             dot = QLabel("●")
-            dot.setStyleSheet("color: #ddd; font-size: 12px;")
+            dot.setStyleSheet(f"color: {dot_inactive}; font-size: 12px;")
             self._progress_dots.append(dot)
             progress_layout.addWidget(dot)
 
@@ -221,17 +244,17 @@ class OnboardingDialog(QDialog):
         # 跳过按钮
         self._skip_btn = QPushButton("跳过引导")
         self._skip_btn.clicked.connect(self._on_skip)
-        self._skip_btn.setStyleSheet("""
-            QPushButton {
+        self._skip_btn.setStyleSheet(f"""
+            QPushButton {{
                 padding: 10px 25px;
                 border: none;
                 background: transparent;
-                color: #999;
+                color: {skip_color};
                 font-size: 14px;
-            }
-            QPushButton:hover {
-                color: #666;
-            }
+            }}
+            QPushButton:hover {{
+                color: {skip_hover};
+            }}
         """)
         btn_layout.addWidget(self._skip_btn)
 
@@ -240,18 +263,18 @@ class OnboardingDialog(QDialog):
         # 上一步按钮
         self._prev_btn = QPushButton("← 上一步")
         self._prev_btn.clicked.connect(self._on_prev)
-        self._prev_btn.setStyleSheet("""
-            QPushButton {
+        self._prev_btn.setStyleSheet(f"""
+            QPushButton {{
                 padding: 10px 25px;
-                border: 1px solid #ddd;
+                border: 1px solid {prev_border};
                 border-radius: 5px;
-                background: #fff;
-                color: #666;
+                background: {prev_bg};
+                color: {prev_color};
                 font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #f5f5f5;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {prev_hover_bg};
+            }}
         """)
         btn_layout.addWidget(self._prev_btn)
 
@@ -290,7 +313,7 @@ class OnboardingDialog(QDialog):
             if i == self._current_step:
                 dot.setStyleSheet("color: #667eea; font-size: 12px;")
             else:
-                dot.setStyleSheet("color: #ddd; font-size: 12px;")
+                dot.setStyleSheet(f"color: {self._dot_inactive_color}; font-size: 12px;")
 
         # 更新按钮状态
         self._prev_btn.setVisible(self._current_step > 0)
