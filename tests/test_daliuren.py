@@ -120,7 +120,8 @@ class TestDaLiuRenTheory:
         standard = self.theory.to_standard_answer(result)
 
         assert standard["judgment"] == "凶"
-        assert standard["judgment_level"] == 0.7  # 1.0 - 0.3
+        # 注：judgment_level直接使用综合评分，不做反转
+        assert standard["judgment_level"] == 0.3
 
     def test_to_standard_answer_ping(self):
         """测试转换为标准答案：平"""

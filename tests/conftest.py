@@ -4,7 +4,17 @@ Pytest配置文件
 配置测试环境，包括mock PyQt6组件以支持无头环境测试
 """
 import sys
+import os
+from pathlib import Path
 from unittest.mock import MagicMock
+
+# 添加cyber_mantic目录到Python路径
+project_root = Path(__file__).parent.parent
+cyber_mantic_path = project_root / "cyber_mantic"
+if str(cyber_mantic_path) not in sys.path:
+    sys.path.insert(0, str(cyber_mantic_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 
 # Mock PyQt6模块以支持无头环境测试
