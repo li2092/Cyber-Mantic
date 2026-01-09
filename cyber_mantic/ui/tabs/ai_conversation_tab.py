@@ -438,7 +438,12 @@ class AIConversationTab(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
-        # ===== V2: FlowGuard信息收集进度（最顶端显示） =====
+        # ===== 进度条（最顶端显示，初始隐藏） =====
+        self.progress_widget = ProgressWidget()
+        self.progress_widget.hide()
+        layout.addWidget(self.progress_widget)
+
+        # ===== V2: FlowGuard信息收集进度 =====
         flowguard_group = QGroupBox("📋 信息收集进度")
         flowguard_layout = QVBoxLayout()
         self.flowguard_text = QTextBrowser()
@@ -491,13 +496,7 @@ class AIConversationTab(QWidget):
         stage_group.setLayout(stage_layout)
         layout.addWidget(stage_group)
 
-        # 移除 addStretch()，改为在底部添加进度条
-        # 进度显示（固定在底部，初始隐藏）
-        self.progress_widget = ProgressWidget()
-        self.progress_widget.hide()
-        layout.addWidget(self.progress_widget)
-
-        # 添加弹性空间，使进度条始终在可见内容之后
+        # 添加弹性空间
         layout.addStretch()
 
         content_widget.setLayout(layout)
