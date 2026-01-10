@@ -1052,6 +1052,24 @@ class InsightTab(QWidget):
             # 数据已更改，刷新界面
             self.refresh_data()
 
+    def set_font_size(self, size: int):
+        """设置全局字体大小（由主窗口调用）"""
+        # 更新AI分析文本
+        if self._ai_placeholder:
+            current_style = self._ai_placeholder.styleSheet()
+            # 更新font-size
+            import re
+            new_style = re.sub(r'font-size:\s*\d+px;', f'font-size: {size}px;', current_style)
+            self._ai_placeholder.setStyleSheet(new_style)
+
+        # 更新使用画像值标签
+        for label in self._profile_values.values():
+            label.setStyleSheet(f"font-size: {size}px; color: #1E293B;")
+
+        # 更新典籍学习值标签
+        for label in self._library_values.values():
+            label.setStyleSheet(f"font-size: {size}px; color: #1E293B;")
+
     def cleanup(self):
         """清理资源"""
         pass

@@ -467,6 +467,21 @@ class AIConversationTab(QWidget):
         flowguard_group.setLayout(flowguard_layout)
         layout.addWidget(flowguard_group)
 
+        # ===== V2: 阶段关键信息回顾 =====
+        stage_review_group = QGroupBox("📝 阶段回顾")
+        stage_review_layout = QVBoxLayout()
+        self.stage_review_text = QTextBrowser()
+        self.stage_review_text.setReadOnly(True)
+        self.stage_review_text.setFrameStyle(QFrame.Shape.NoFrame)
+        self.stage_review_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.stage_review_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.stage_review_text.setMaximumHeight(200)
+        self.stage_review_text.setMarkdown("_等待收集信息..._")
+        self.stage_review_text.setStyleSheet("font-size: 9pt;")
+        stage_review_layout.addWidget(self.stage_review_text)
+        stage_review_group.setLayout(stage_review_layout)
+        layout.addWidget(stage_review_group)
+
         # ===== V2: 标题 =====
         title_label = QLabel("📊 理论分析进度")
         title_font = QFont()
@@ -749,6 +764,9 @@ class AIConversationTab(QWidget):
         # ===== V2: 更新FlowGuard信息收集进度 =====
         self._update_flowguard_progress()
 
+        # ===== V2: 更新阶段回顾信息 =====
+        self._update_stage_review()
+
         # ===== V2: 更新回溯验证面板 =====
         self._update_verification_panel()
 
@@ -813,6 +831,11 @@ class AIConversationTab(QWidget):
         if hasattr(self, 'chat_widget'):
             self.chat_widget.set_font_size(self.chat_font_size)
 
+    def set_font_size(self, size: int):
+        """设置全局字体大小（由主窗口调用）"""
+        self.chat_font_size = size
+        self._apply_chat_font_size()
+
     def update_from_report(self, report):
         """
         从分析报告更新八字命盘信息
@@ -875,6 +898,64 @@ class AIConversationTab(QWidget):
         except Exception as e:
             self.logger.warning(f"FlowGuard进度更新失败: {e}")
             self.flowguard_text.setMarkdown("_进度更新失败_")
+
+    def _update_stage_review(self):
+        """V2: 更新阶段关键信息回顾"""
+        try:
+            context = self.conversation_service.context
+            review_lines = []
+
+            # 阶段1：破冰信息
+            if context.question_type:
+                review_lines.append(f"**咨询类别**: {context.question_type}")
+            if context.random_numbers:
+                numbers_str = '-'.join(map(str, context.random_numbers))
+                review_lines.append(f"**随机数字**: {numbers_str}")
+
+            # 阶段2：深入信息
+            if context.question_description:
+                desc = context.question_description
+                if len(desc) > 30:
+                    desc = desc[:30] + "..."
+                review_lines.append(f"**具体描述**: {desc}")
+            if context.test_character:
+                review_lines.append(f"**测字汉字**: {context.test_character}")
+
+            # 阶段3：详细信息
+            if hasattr(context, 'birth_year') and context.birth_year:
+                birth_info = f"{context.birth_year}年"
+                if hasattr(context, 'birth_month') and context.birth_month:
+                    birth_info += f"{context.birth_month}月"
+                if hasattr(context, 'birth_day') and context.birth_day:
+                    birth_info += f"{context.birth_day}日"
+                if hasattr(context, 'birth_hour') and context.birth_hour is not None:
+                    birth_info += f" {context.birth_hour}时"
+                review_lines.append(f"**出生时间**: {birth_info}")
+            if hasattr(context, 'gender') and context.gender:
+                gender_text = "男" if context.gender == "male" else "女"
+                review_lines.append(f"**性别**: {gender_text}")
+            if hasattr(context, 'mbti_type') and context.mbti_type:
+                review_lines.append(f"**MBTI**: {context.mbti_type}")
+
+            # 阶段4：验证信息
+            if hasattr(context, 'verification_results') and context.verification_results:
+                correct = sum(1 for r in context.verification_results if r.get('result') == 'correct')
+                total = len(context.verification_results)
+                review_lines.append(f"**验证结果**: {correct}/{total} 正确")
+
+            # 理论选择
+            if context.selected_theories:
+                theories_str = ', '.join(context.selected_theories)
+                review_lines.append(f"**使用理论**: {theories_str}")
+
+            if review_lines:
+                self.stage_review_text.setMarkdown('\n\n'.join(review_lines))
+            else:
+                self.stage_review_text.setMarkdown("_等待收集信息..._")
+
+        except Exception as e:
+            self.logger.warning(f"阶段回顾更新失败: {e}")
+            self.stage_review_text.setMarkdown("_更新失败_")
 
     def _update_verification_panel(self):
         """V2: 更新回溯验证面板"""

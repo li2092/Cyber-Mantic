@@ -39,9 +39,15 @@ class SidebarWidgetV2(QWidget):
 
     # 导航切换信号
     navigation_changed = pyqtSignal(str)
+    # 全局字体大小变化信号
+    font_size_changed = pyqtSignal(int)
 
     # 宽度常量
     WIDTH = 200
+    # 字体大小范围
+    MIN_FONT_SIZE = 10
+    MAX_FONT_SIZE = 20
+    DEFAULT_FONT_SIZE = 14
 
     def __init__(self, theme: str = "light", parent=None):
         super().__init__(parent)
@@ -50,6 +56,7 @@ class SidebarWidgetV2(QWidget):
         self.style_gen = StyleGenerator(theme)
         self.current_nav = "wendao"
         self.nav_buttons: Dict[str, QPushButton] = {}
+        self._global_font_size = self.DEFAULT_FONT_SIZE
 
         self._setup_ui()
 
@@ -84,6 +91,13 @@ class SidebarWidgetV2(QWidget):
 
         # 弹性空间
         layout.addStretch()
+
+        # 底部分隔线
+        layout.addWidget(self._create_separator())
+
+        # 字体大小调节区域
+        font_control_widget = self._create_font_size_control()
+        layout.addWidget(font_control_widget)
 
         # 底部分隔线
         layout.addWidget(self._create_separator())
@@ -183,6 +197,102 @@ class SidebarWidgetV2(QWidget):
             if path.exists():
                 return str(path)
         return None
+
+    def _create_font_size_control(self) -> QWidget:
+        """创建字体大小调节控件"""
+        widget = QWidget()
+        widget.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(spacing.sm, spacing.sm, spacing.sm, spacing.sm)
+        layout.setSpacing(spacing.xs)
+
+        # 标签
+        label = QLabel("📏 文字大小")
+        label.setFont(QFont("Microsoft YaHei", font_size.xs))
+        label.setStyleSheet(f"color: {self.colors['text_muted']}; background: transparent;")
+        layout.addWidget(label)
+
+        # 控制行
+        control_row = QHBoxLayout()
+        control_row.setSpacing(4)
+
+        # 减小按钮
+        self._font_decrease_btn = QPushButton("A-")
+        self._font_decrease_btn.setFixedSize(32, 28)
+        self._font_decrease_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._font_decrease_btn.clicked.connect(self._decrease_font_size)
+        self._font_decrease_btn.setStyleSheet(self._get_font_btn_style())
+        control_row.addWidget(self._font_decrease_btn)
+
+        # 当前大小显示
+        self._font_size_label = QLabel(str(self._global_font_size))
+        self._font_size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._font_size_label.setMinimumWidth(30)
+        self._font_size_label.setStyleSheet(f"""
+            color: {self.colors['text_primary']};
+            font-weight: bold;
+            background: transparent;
+        """)
+        control_row.addWidget(self._font_size_label)
+
+        # 增大按钮
+        self._font_increase_btn = QPushButton("A+")
+        self._font_increase_btn.setFixedSize(32, 28)
+        self._font_increase_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._font_increase_btn.clicked.connect(self._increase_font_size)
+        self._font_increase_btn.setStyleSheet(self._get_font_btn_style())
+        control_row.addWidget(self._font_increase_btn)
+
+        control_row.addStretch()
+        layout.addLayout(control_row)
+
+        return widget
+
+    def _get_font_btn_style(self) -> str:
+        """获取字体调节按钮样式"""
+        return f"""
+            QPushButton {{
+                background-color: {self.colors['bg_secondary']};
+                color: {self.colors['text_primary']};
+                border: 1px solid {self.colors['border']};
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }}
+            QPushButton:hover {{
+                background-color: {self.colors['hover_bg']};
+                border-color: #6366F1;
+            }}
+            QPushButton:pressed {{
+                background-color: {self.colors['active_bg']};
+            }}
+        """
+
+    def _increase_font_size(self):
+        """增大字体"""
+        if self._global_font_size < self.MAX_FONT_SIZE:
+            self._global_font_size += 1
+            self._font_size_label.setText(str(self._global_font_size))
+            self.font_size_changed.emit(self._global_font_size)
+
+    def _decrease_font_size(self):
+        """减小字体"""
+        if self._global_font_size > self.MIN_FONT_SIZE:
+            self._global_font_size -= 1
+            self._font_size_label.setText(str(self._global_font_size))
+            self.font_size_changed.emit(self._global_font_size)
+
+    def get_font_size(self) -> int:
+        """获取当前全局字体大小"""
+        return self._global_font_size
+
+    def set_font_size(self, size: int):
+        """设置全局字体大小"""
+        size = max(self.MIN_FONT_SIZE, min(self.MAX_FONT_SIZE, size))
+        if size != self._global_font_size:
+            self._global_font_size = size
+            self._font_size_label.setText(str(self._global_font_size))
+            self.font_size_changed.emit(self._global_font_size)
 
     def _create_separator(self) -> QFrame:
         """创建分隔线"""

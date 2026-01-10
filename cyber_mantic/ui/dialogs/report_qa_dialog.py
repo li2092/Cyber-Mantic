@@ -58,58 +58,39 @@ class ReportQADialog(QDialog):
         self._load_suggested_questions()
 
     def _setup_ui(self):
-        """设置UI"""
+        """设置UI - 左侧聊天为主，右侧建议问题为辅"""
         self.setWindowTitle("报告问答")
-        self.setMinimumSize(700, 600)
+        self.setMinimumSize(900, 650)
+        self.resize(1000, 700)
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(16)
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        main_layout.setSpacing(12)
 
-        # 标题
+        # 标题栏
+        title_layout = QHBoxLayout()
         title_label = QLabel("💬 报告问答")
         title_font = QFont()
         title_font.setPointSize(14)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        layout.addWidget(title_label)
+        title_layout.addWidget(title_label)
+        title_layout.addStretch()
+        main_layout.addLayout(title_layout)
 
-        # 说明文字
-        info_label = QLabel("您可以对这份报告提出疑问，AI助手会基于报告内容为您解答。")
-        info_label.setStyleSheet("color: #666; font-size: 10pt;")
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
+        # 水平分割器：左侧聊天（主），右侧信息（辅）
+        from PyQt6.QtWidgets import QSplitter
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # 建议问题区域
-        suggested_frame = QFrame()
-        suggested_frame.setFrameShape(QFrame.Shape.Box)
-        suggested_frame.setStyleSheet("""
-            QFrame {
-                background-color: #FFF9E6;
-                border: 1px solid #FFE082;
-                border-radius: 8px;
-            }
-        """)
-
-        suggested_layout = QVBoxLayout()
-        suggested_layout.setContentsMargins(12, 12, 12, 12)
-        suggested_layout.setSpacing(8)
-
-        suggested_title = QLabel("💡 建议的问题（点击快速提问）：")
-        suggested_title.setStyleSheet("font-weight: bold; color: #F57C00;")
-        suggested_layout.addWidget(suggested_title)
-
-        # 建议问题按钮容器
-        self.suggested_buttons_layout = QVBoxLayout()
-        self.suggested_buttons_layout.setSpacing(6)
-        suggested_layout.addLayout(self.suggested_buttons_layout)
-
-        suggested_frame.setLayout(suggested_layout)
-        layout.addWidget(suggested_frame)
+        # ===== 左侧：聊天区域 =====
+        chat_container = QWidget()
+        chat_layout = QVBoxLayout(chat_container)
+        chat_layout.setContentsMargins(0, 0, 8, 0)
+        chat_layout.setSpacing(12)
 
         # 聊天消息区域
         self.chat_widget = ChatWidget()
-        layout.addWidget(self.chat_widget)
+        chat_layout.addWidget(self.chat_widget, 1)
 
         # 输入区域
         input_layout = QHBoxLayout()
@@ -135,7 +116,7 @@ class ReportQADialog(QDialog):
         self.send_btn.setFixedSize(80, 80)
         self.send_btn.setStyleSheet("""
             QPushButton {
-                background-color: #64B5F6;
+                background-color: #6366F1;
                 color: white;
                 border: none;
                 border-radius: 8px;
@@ -143,10 +124,10 @@ class ReportQADialog(QDialog):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #42A5F5;
+                background-color: #4F46E5;
             }
             QPushButton:pressed {
-                background-color: #2196F3;
+                background-color: #4338CA;
             }
             QPushButton:disabled {
                 background-color: #BDBDBD;
@@ -155,47 +136,93 @@ class ReportQADialog(QDialog):
         self.send_btn.clicked.connect(self._on_send_clicked)
         input_layout.addWidget(self.send_btn)
 
-        layout.addLayout(input_layout)
+        chat_layout.addLayout(input_layout)
+        splitter.addWidget(chat_container)
+
+        # ===== 右侧：信息与建议问题 =====
+        right_container = QWidget()
+        right_container.setMaximumWidth(300)
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(8, 0, 0, 0)
+        right_layout.setSpacing(12)
+
+        # 说明文字
+        info_label = QLabel("基于报告内容为您解答问题")
+        info_label.setStyleSheet("color: #64748B; font-size: 10pt;")
+        info_label.setWordWrap(True)
+        right_layout.addWidget(info_label)
+
+        # 建议问题区域
+        suggested_frame = QFrame()
+        suggested_frame.setFrameShape(QFrame.Shape.Box)
+        suggested_frame.setStyleSheet("""
+            QFrame {
+                background-color: #FFF9E6;
+                border: 1px solid #FFE082;
+                border-radius: 8px;
+            }
+        """)
+
+        suggested_inner_layout = QVBoxLayout(suggested_frame)
+        suggested_inner_layout.setContentsMargins(12, 12, 12, 12)
+        suggested_inner_layout.setSpacing(8)
+
+        suggested_title = QLabel("💡 建议问题")
+        suggested_title.setStyleSheet("font-weight: bold; color: #F57C00;")
+        suggested_inner_layout.addWidget(suggested_title)
+
+        # 建议问题按钮容器
+        self.suggested_buttons_layout = QVBoxLayout()
+        self.suggested_buttons_layout.setSpacing(6)
+        suggested_inner_layout.addLayout(self.suggested_buttons_layout)
+
+        right_layout.addWidget(suggested_frame)
 
         # 底部按钮
-        bottom_layout = QHBoxLayout()
-        bottom_layout.addStretch()
+        right_layout.addStretch()
 
-        export_btn = QPushButton("导出对话")
+        export_btn = QPushButton("📄 导出对话")
         export_btn.setStyleSheet("""
             QPushButton {
-                background-color: #E0E0E0;
+                background-color: #E5E7EB;
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
                 font-size: 10pt;
             }
             QPushButton:hover {
-                background-color: #BDBDBD;
+                background-color: #D1D5DB;
             }
         """)
         export_btn.clicked.connect(self._on_export_clicked)
-        bottom_layout.addWidget(export_btn)
+        right_layout.addWidget(export_btn)
 
         close_btn = QPushButton("关闭")
         close_btn.setStyleSheet("""
             QPushButton {
-                background-color: #E0E0E0;
+                background-color: #E5E7EB;
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
                 font-size: 10pt;
             }
             QPushButton:hover {
-                background-color: #BDBDBD;
+                background-color: #D1D5DB;
             }
         """)
         close_btn.clicked.connect(self.accept)
-        bottom_layout.addWidget(close_btn)
+        right_layout.addWidget(close_btn)
 
-        layout.addLayout(bottom_layout)
+        splitter.addWidget(right_container)
 
-        self.setLayout(layout)
+        # 设置分割比例（左:右 = 70:30）
+        splitter.setStretchFactor(0, 70)
+        splitter.setStretchFactor(1, 30)
+        splitter.setSizes([700, 300])
+
+        main_layout.addWidget(splitter, 1)
+
+        self.setLayout(main_layout)
 
         # 欢迎消息
         welcome_msg = f"""

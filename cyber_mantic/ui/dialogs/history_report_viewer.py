@@ -5,16 +5,16 @@ HistoryReportViewerDialog - 历史报告查看对话框
 """
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTextBrowser,
+    QDialog, QVBoxLayout, QHBoxLayout, QTextBrowser, QTextEdit,
     QPushButton, QLabel, QFrame, QScrollArea, QWidget,
-    QMessageBox, QFileDialog, QSplitter
+    QMessageBox, QFileDialog, QSplitter, QTabWidget
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
-from models import ComprehensiveReport
+from models import ComprehensiveReport, TheoryAnalysisResult
 
 
 class HistoryReportViewerDialog(QDialog):
@@ -115,35 +115,163 @@ class HistoryReportViewerDialog(QDialog):
         return toolbar
 
     def _create_content_area(self) -> QWidget:
-        """创建报告内容区域"""
+        """创建报告内容区域 - 使用分栏显示"""
         container = QWidget()
         container.setStyleSheet("background-color: #FFFFFF;")
 
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
 
-        # 使用QTextBrowser显示Markdown格式的报告
-        self.report_browser = QTextBrowser()
-        self.report_browser.setOpenExternalLinks(True)
-        self.report_browser.setStyleSheet("""
-            QTextBrowser {
-                background-color: #FFFFFF;
+        # 使用TabWidget分栏显示
+        self.result_tabs = QTabWidget()
+        self.result_tabs.setStyleSheet("""
+            QTabWidget::pane {
                 border: 1px solid #E5E7EB;
                 border-radius: 8px;
-                padding: 16px;
-                font-size: 11pt;
-                line-height: 1.6;
+                background: white;
+            }
+            QTabBar::tab {
+                background: #F1F5F9;
+                border: 1px solid #E5E7EB;
+                border-bottom: none;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-radius: 6px 6px 0 0;
+            }
+            QTabBar::tab:selected {
+                background: white;
+                border-bottom: 1px solid white;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #E2E8F0;
             }
         """)
 
-        # 生成报告内容
-        report_html = self._generate_report_html()
-        self.report_browser.setHtml(report_html)
+        # Tab 1: 核心摘要
+        self.summary_text = QTextEdit()
+        self.summary_text.setReadOnly(True)
+        self._apply_text_style(self.summary_text)
+        self.result_tabs.addTab(self.summary_text, "📊 核心摘要")
 
-        layout.addWidget(self.report_browser)
+        # Tab 2: 详细分析
+        self.detail_text = QTextEdit()
+        self.detail_text.setReadOnly(True)
+        self._apply_text_style(self.detail_text)
+        self.result_tabs.addTab(self.detail_text, "📝 详细分析")
+
+        # Tab 3: 各理论分析
+        self.theories_text = QTextEdit()
+        self.theories_text.setReadOnly(True)
+        self._apply_text_style(self.theories_text)
+        self.result_tabs.addTab(self.theories_text, "🔮 各理论分析")
+
+        # Tab 4: 建议与置信度
+        self.advice_text = QTextEdit()
+        self.advice_text.setReadOnly(True)
+        self._apply_text_style(self.advice_text)
+        self.result_tabs.addTab(self.advice_text, "💡 行动建议")
+
+        # 填充内容
+        self._populate_tabs()
+
+        layout.addWidget(self.result_tabs)
 
         return container
+
+    def _apply_text_style(self, text_widget: QTextEdit):
+        """应用统一的文本样式"""
+        text_widget.setStyleSheet("""
+            QTextEdit {
+                background-color: #FFFFFF;
+                border: none;
+                padding: 16px;
+                font-size: 11pt;
+                line-height: 1.8;
+            }
+        """)
+
+    def _populate_tabs(self):
+        """填充各标签页内容"""
+        report = self.report
+
+        # Tab 1: 核心摘要
+        summary_md = f"""# 赛博玄数分析报告
+
+**报告ID**: {report.report_id[:16] if report.report_id else '未知'}
+**生成时间**: {report.created_at.strftime('%Y-%m-%d %H:%M:%S') if report.created_at else '未知'}
+**问题类别**: {report.user_input_summary.get('question_type', '未知') if report.user_input_summary else '未知'}
+**使用理论**: {', '.join(report.selected_theories) if report.selected_theories else '未知'}
+
+---
+
+## 核心摘要
+
+{report.executive_summary if report.executive_summary else '暂无摘要'}
+
+---
+
+**置信度**: {report.overall_confidence:.0%} | **局限性**: {', '.join(report.limitations) if report.limitations else '无'}
+"""
+        self.summary_text.setMarkdown(summary_md)
+
+        # Tab 2: 详细分析
+        detail_md = "# 详细分析\n\n"
+        if report.detailed_analysis:
+            detail_md += f"{report.detailed_analysis}\n\n"
+
+        if report.retrospective_analysis:
+            detail_md += f"---\n\n## 📊 回溯分析（过去经历）\n\n{report.retrospective_analysis}\n\n"
+
+        if report.predictive_analysis:
+            detail_md += f"---\n\n## 🔮 预测分析（未来趋势）\n\n{report.predictive_analysis}\n\n"
+
+        self.detail_text.setMarkdown(detail_md)
+
+        # Tab 3: 各理论分析
+        theories_md = f"# 各理论分析详情\n\n*共使用 **{len(report.theory_results)}** 个术数理论进行分析*\n\n---\n\n"
+
+        for i, result in enumerate(report.theory_results, 1):
+            if isinstance(result, TheoryAnalysisResult):
+                theories_md += f"## {i}. {result.theory_name}\n\n"
+                theories_md += f"**置信度**: {self._create_progress_bar(result.confidence)} `{result.confidence:.0%}`\n\n"
+                theories_md += f"**判断**: {result.judgment}\n\n"
+                theories_md += f"{result.interpretation}\n\n"
+                if result.advice:
+                    theories_md += f"**建议**: {result.advice}\n\n"
+                theories_md += "---\n\n"
+            elif isinstance(result, dict):
+                # 兼容字典格式
+                theories_md += f"## {i}. {result.get('theory_name', '未知理论')}\n\n"
+                theories_md += f"**置信度**: {self._create_progress_bar(result.get('confidence', 0.8))} `{result.get('confidence', 0.8):.0%}`\n\n"
+                theories_md += f"**判断**: {result.get('judgment', '平')}\n\n"
+                theories_md += f"{result.get('interpretation', '')}\n\n"
+                if result.get('advice'):
+                    theories_md += f"**建议**: {result.get('advice')}\n\n"
+                theories_md += "---\n\n"
+
+        self.theories_text.setMarkdown(theories_md)
+
+        # Tab 4: 行动建议
+        advice_md = "# 行动建议\n\n"
+        if report.comprehensive_advice:
+            for i, item in enumerate(report.comprehensive_advice, 1):
+                if isinstance(item, dict):
+                    priority = item.get('priority', '中')
+                    content = item.get('content', '')
+                    advice_md += f"**{i}. 【{priority}优先级】** {content}\n\n"
+                else:
+                    advice_md += f"**{i}.** {item}\n\n"
+        else:
+            advice_md += "*暂无建议*\n"
+
+        self.advice_text.setMarkdown(advice_md)
+
+    def _create_progress_bar(self, value: float) -> str:
+        """创建文本进度条"""
+        filled = int(value * 20)
+        empty = 20 - filled
+        return "█" * filled + "░" * empty
 
     def _generate_report_html(self) -> str:
         """生成报告的HTML内容"""

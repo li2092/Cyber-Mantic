@@ -64,6 +64,7 @@ class ProgressiveMarkdownRenderer:
         h1_color = "#7C3AED" if self.theme == "light" else "#A78BFA"
         h2_color = "#8B5CF6" if self.theme == "light" else "#818CF8"
         h3_color = "#6366F1"
+        h4_color = "#4F46E5" if self.theme == "light" else "#6366F1"
         code_bg = "#F1F5F9" if self.theme == "light" else "#1A1A28"
         code_color = "#334155" if self.theme == "light" else "#E2E8F0"
         quote_border = "#6366F1"
@@ -95,8 +96,14 @@ class ProgressiveMarkdownRenderer:
                 html_parts.append(self._escape_html(line) + '\n')
                 continue
 
-            # 标题
-            if line.startswith('### '):
+            # 标题（按前缀长度从长到短检查，避免误匹配）
+            if line.startswith('#### '):
+                content = self._process_inline(line[5:])
+                html_parts.append(
+                    f'<p style="font-weight: 600; font-size: 14px; margin: 10px 0 4px 0; '
+                    f'color: {h4_color};">{content}</p>'
+                )
+            elif line.startswith('### '):
                 content = self._process_inline(line[4:])
                 html_parts.append(
                     f'<p style="font-weight: 600; font-size: 15px; margin: 12px 0 6px 0; '
@@ -314,8 +321,10 @@ class AutoHeightTextBrowser(QTextBrowser):
 
     def _adjust_height(self):
         if self.width() > 0:
-            # 增加右侧裕量，防止文字被遮挡
-            self.document().setTextWidth(self.width() - 40)
+            # 设置文档宽度，预留足够的右侧裕量防止文字被遮挡
+            # 裕量包括：滚动条空间(17px) + 安全边距(23px) = 40px
+            text_width = max(self.width() - 40, 100)  # 最小100px防止过窄
+            self.document().setTextWidth(text_width)
         self.document().adjustSize()
         doc_height = self.document().size().height()
         new_height = max(int(doc_height + 35), self._min_height)
@@ -387,12 +396,17 @@ class ChatBubble(QFrame):
         bubble_layout = QVBoxLayout(bubble)
         bubble_layout.setContentsMargins(spacing.md, spacing.sm + 4, spacing.md, spacing.sm + 4)
 
-        # 内容标签 - 统一字体大小
+        # 内容标签 - 统一字体大小（使用px与AI气泡一致）
         content_label = QLabel(self.content)
         content_label.setWordWrap(True)
-        content_label.setFont(QFont("Microsoft YaHei", font_size.base))
-        content_label.setStyleSheet(f"color: {self.colors['user_text']}; background: transparent;")
-        content_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        content_label.setStyleSheet(f"""
+            color: {self.colors['user_text']};
+            background: transparent;
+            font-family: 'Microsoft YaHei';
+            font-size: {font_size.base}px;
+        """)
+        # 用户气泡内文字左对齐
+        content_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         content_label.setMaximumWidth(500)  # 最大宽度限制
         bubble_layout.addWidget(content_label)
 
@@ -454,7 +468,8 @@ class ChatBubble(QFrame):
         # 气泡容器
         bubble_container = QWidget()
         bubble_container_layout = QVBoxLayout(bubble_container)
-        bubble_container_layout.setContentsMargins(6, 0, 0, 0)  # 减少左边距
+        # 左边距6px，右边距40px（防止文字被遮挡 + 实现错落有致的视觉效果）
+        bubble_container_layout.setContentsMargins(6, 0, 40, 0)
         bubble_container_layout.setSpacing(4)
 
         # 名称标签
@@ -519,8 +534,7 @@ class ChatBubble(QFrame):
 
         bubble_container_layout.addWidget(bubble)
         main_layout.addWidget(bubble_container, 1)
-        # 右侧留空间，防止文字被遮挡
-        main_layout.addSpacing(20)
+        # 右侧不再需要额外spacing，bubble_container_layout已有40px右边距
 
     def _get_logo_path(self) -> str:
         """获取Logo路径"""

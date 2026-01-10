@@ -201,6 +201,11 @@ class DynamicVerificationGenerator:
         age = user_info.get("age")
         gender = user_info.get("gender", "未知")
 
+        # 当前日期信息
+        now = datetime.now()
+        current_year = now.year
+        current_date = now.strftime("%Y年%m月%d日")
+
         # 使用提示词模板
         prompt = load_prompt(
             "verification", "questions_gen",
@@ -208,6 +213,8 @@ class DynamicVerificationGenerator:
             question_type=question_type,
             age=age if age else '未知',
             gender=gender,
+            current_year=current_year,
+            current_date=current_date,
             analysis_summary=self._format_analysis_summary(analysis_results)
         )
 

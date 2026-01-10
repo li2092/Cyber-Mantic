@@ -435,6 +435,13 @@ class HistoryTab(QWidget):
         except Exception as e:
             self.error_handler.handle_error(e, "报告问答")
 
+    def set_font_size(self, size: int):
+        """设置全局字体大小（由主窗口调用）"""
+        from PyQt6.QtGui import QFont
+        font = QFont()
+        font.setPointSize(size)
+        self.history_table.setFont(font)
+
     def cleanup(self):
         """清理资源，断开信号连接"""
         try:

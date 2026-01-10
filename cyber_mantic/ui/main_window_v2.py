@@ -220,6 +220,7 @@ if HAS_PYQT6:
             # 左侧导航栏
             self.sidebar = SidebarWidgetV2(theme=self.theme)
             self.sidebar.navigation_changed.connect(self._on_navigation_changed)
+            self.sidebar.font_size_changed.connect(self._on_global_font_size_changed)
             main_layout.addWidget(self.sidebar)
 
             # 右侧内容区
@@ -668,6 +669,30 @@ if HAS_PYQT6:
             if nav_id in self.nav_to_index:
                 self.content_stack.setCurrentIndex(self.nav_to_index[nav_id])
                 self.logger.debug(f"切换到页面: {nav_id}")
+
+        def _on_global_font_size_changed(self, size: int):
+            """全局字体大小变化"""
+            self.logger.debug(f"全局字体大小调整为: {size}px")
+
+            # 更新问道对话界面
+            if hasattr(self, 'ai_conversation_tab') and self.ai_conversation_tab:
+                if hasattr(self.ai_conversation_tab, 'set_font_size'):
+                    self.ai_conversation_tab.set_font_size(size)
+
+            # 更新推演报告界面
+            if hasattr(self, 'analysis_tab') and self.analysis_tab:
+                if hasattr(self.analysis_tab, 'set_font_size'):
+                    self.analysis_tab.set_font_size(size)
+
+            # 更新洞察界面
+            if hasattr(self, 'insight_tab') and self.insight_tab:
+                if hasattr(self.insight_tab, 'set_font_size'):
+                    self.insight_tab.set_font_size(size)
+
+            # 更新历史记录界面
+            if hasattr(self, 'history_tab') and self.history_tab:
+                if hasattr(self.history_tab, 'set_font_size'):
+                    self.history_tab.set_font_size(size)
 
         def _on_theme_changed(self, theme: str):
             """主题切换"""

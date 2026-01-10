@@ -391,6 +391,11 @@ class AnalysisTab(QWidget):
         self.update()
         self.repaint()
 
+    def set_font_size(self, size: int):
+        """设置全局字体大小（由主窗口调用）"""
+        if hasattr(self, 'result_panel'):
+            self.result_panel.set_font_size(size)
+
     def cleanup(self):
         """清理资源"""
         if self.worker:

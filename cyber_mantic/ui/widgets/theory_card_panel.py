@@ -22,6 +22,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
 from PyQt6.QtGui import QCursor, QFont
 from typing import Optional, Dict
 from enum import Enum
+from loguru import logger
 
 
 class TheoryStatus(Enum):
@@ -57,9 +58,9 @@ class TheoryCard(QPushButton):
             "border": "#065F46",
         },
         JudgmentLevel.PING: {
-            "bg": "#F3F4F6",      # 浅灰
-            "text": "#4B5563",    # 深灰
-            "border": "#E5E7EB",
+            "bg": "#EEF2FF",      # 淡蓝紫（与初始状态区分）
+            "text": "#4338CA",    # 深蓝紫
+            "border": "#C7D2FE",
         },
         JudgmentLevel.XIAO_JI: {
             "bg": "#EA580C",      # 喜庆橙
@@ -155,11 +156,11 @@ class TheoryCard(QPushButton):
         is_dark = self.theme == "dark"
 
         if self.status == TheoryStatus.PENDING:
-            # 待分析 - 淡蓝紫色调，与"平"的浅灰区分
+            # 待分析 - 浅灰色调（与"平"的淡蓝紫区分）
             if is_dark:
-                bg, text, border = "#1E1B4B", "#A5B4FC", "#3730A3"  # 深紫蓝底
+                bg, text, border = "#374151", "#9CA3AF", "#4B5563"  # 深灰底
             else:
-                bg, text, border = "#EEF2FF", "#4338CA", "#C7D2FE"  # 浅紫蓝底
+                bg, text, border = "#F3F4F6", "#6B7280", "#E5E7EB"  # 浅灰底
             self.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {bg};
@@ -171,7 +172,7 @@ class TheoryCard(QPushButton):
                 }}
                 QPushButton:hover {{
                     border-color: #6366F1;
-                    background-color: {"#312E81" if is_dark else "#E0E7FF"};
+                    background-color: {"#4B5563" if is_dark else "#E5E7EB"};
                 }}
             """)
 
@@ -339,6 +340,7 @@ class TheoryCardPanel(QFrame):
             data: 结果数据 (包含 judgment, summary 等)
         """
         if theory_name not in self.theory_cards:
+            logger.warning(f"update_theory_status: 未知理论 '{theory_name}'，可用理论: {list(self.theory_cards.keys())}")
             return
 
         card = self.theory_cards[theory_name]

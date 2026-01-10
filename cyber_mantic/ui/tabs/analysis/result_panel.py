@@ -28,9 +28,6 @@ class ResultPanel(QGroupBox):
         layout.setSpacing(10)
         layout.setContentsMargins(15, 15, 15, 15)
 
-        # 字体大小调节工具栏
-        self._create_font_toolbar(layout)
-
         # 使用TabWidget区分不同类型的结果
         self.result_tabs = QTabWidget()
         self.result_tabs.setMinimumHeight(600)
@@ -62,38 +59,6 @@ class ResultPanel(QGroupBox):
 
         layout.addWidget(self.result_tabs)
         self.setLayout(layout)
-
-    def _create_font_toolbar(self, layout: QVBoxLayout):
-        """创建字体大小调节工具栏"""
-        font_toolbar = QHBoxLayout()
-        font_toolbar.setSpacing(5)
-
-        font_label = QLabel("字体大小:")
-        font_toolbar.addWidget(font_label)
-
-        # 缩小按钮
-        self.font_decrease_btn = QPushButton("🔍- 缩小")
-        self.font_decrease_btn.setMaximumWidth(100)
-        self.font_decrease_btn.setMinimumHeight(32)
-        self.font_decrease_btn.clicked.connect(self._decrease_font)
-        font_toolbar.addWidget(self.font_decrease_btn)
-
-        # 重置按钮
-        self.font_reset_btn = QPushButton("↺ 重置")
-        self.font_reset_btn.setMaximumWidth(80)
-        self.font_reset_btn.setMinimumHeight(32)
-        self.font_reset_btn.clicked.connect(self._reset_font)
-        font_toolbar.addWidget(self.font_reset_btn)
-
-        # 放大按钮
-        self.font_increase_btn = QPushButton("🔍+ 放大")
-        self.font_increase_btn.setMaximumWidth(100)
-        self.font_increase_btn.setMinimumHeight(32)
-        self.font_increase_btn.clicked.connect(self._increase_font)
-        font_toolbar.addWidget(self.font_increase_btn)
-
-        font_toolbar.addStretch()
-        layout.addLayout(font_toolbar)
 
     def _create_visualization_widget(self) -> QWidget:
         """创建数据可视化显示组件"""
@@ -525,25 +490,11 @@ class ResultPanel(QGroupBox):
 
     # ===== 字体控制 =====
 
-    def _increase_font(self):
-        """放大报告字体"""
-        if self.report_font_size < 20:
-            self.report_font_size += 1
-            self._apply_report_font_size()
-            self.logger.debug(f"报告字体大小: {self.report_font_size}pt")
-
-    def _decrease_font(self):
-        """缩小报告字体"""
-        if self.report_font_size > 8:
-            self.report_font_size -= 1
-            self._apply_report_font_size()
-            self.logger.debug(f"报告字体大小: {self.report_font_size}pt")
-
-    def _reset_font(self):
-        """重置报告字体为默认大小"""
-        self.report_font_size = 10
+    def set_font_size(self, size: int):
+        """设置全局字体大小（由主窗口调用）"""
+        self.report_font_size = size
         self._apply_report_font_size()
-        self.logger.debug("报告字体大小已重置为10pt")
+        self.logger.debug(f"报告字体大小: {self.report_font_size}pt")
 
     def _apply_report_font_size(self):
         """应用字体大小到所有报告文本框"""

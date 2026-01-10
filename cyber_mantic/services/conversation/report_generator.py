@@ -169,8 +169,10 @@ class ReportGenerator:
 - **性别**：{self.context.gender or '未知'}
 - **MBTI**：{self.context.mbti_type or '未知'}
 
-## 🎯 MBTI个性化表达指导
+## 🎯 MBTI个性化表达指导（贯穿全文）
 {mbti_style}
+
+**重要：请将MBTI个性化特点融入报告的每个部分，包括分析描述、建议措辞、注意事项等，而不是单独列出一个MBTI section。**
 
 ## 使用理论
 {', '.join([t.get('theory', str(t)) if isinstance(t, dict) else str(t) for t in self.context.selected_theories])}
@@ -212,8 +214,8 @@ class ReportGenerator:
 1. **[领域]**：[具体建议]
 2. **[领域]**：[具体建议]
 
-### 💡 MBTI人格适配建议
-[根据用户的MBTI类型，给出个性化的沟通方式、决策建议、注意事项]
+### 🔄 注意事项
+[根据分析结果和用户MBTI特点，给出需要注意的风险点、盲区提醒，用符合用户性格特点的方式表达]
 
 ---
 
