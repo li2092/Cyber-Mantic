@@ -32,6 +32,7 @@ from ui.widgets.chat_widget import ChatWidget
 from ui.widgets.progress_widget import ProgressWidget
 from ui.widgets.quick_result_card import QuickResultPanel
 from ui.widgets.verification_widget import VerificationPanel
+from ui.widgets.stage_indicator import StageIndicatorBar
 from services.conversation_service import ConversationService, ConversationStage
 from api.manager import APIManager
 from utils.logger import get_logger
@@ -351,6 +352,11 @@ class AIConversationTab(QWidget):
 
         layout.addWidget(toolbar)
 
+        # ========== 五阶段指示条 ==========
+        self.stage_indicator = StageIndicatorBar(theme=self.current_theme)
+        self.stage_indicator.stage_clicked.connect(self._on_stage_indicator_clicked)
+        layout.addWidget(self.stage_indicator)
+
         # 初始化字体大小
         self.chat_font_size = 11  # 默认11pt
 
@@ -489,15 +495,7 @@ class AIConversationTab(QWidget):
         self.verification_group.hide()  # 初始隐藏
         layout.addWidget(self.verification_group)
 
-        # 当前阶段（简化为一行状态）
-        stage_group = QGroupBox("当前阶段")
-        stage_layout = QVBoxLayout()
-        self.stage_label = QLabel("等待用户输入...")
-        self.stage_label.setWordWrap(True)
-        self.stage_label.setProperty("heading", True)
-        stage_layout.addWidget(self.stage_label)
-        stage_group.setLayout(stage_layout)
-        layout.addWidget(stage_group)
+        # V2: 删除了"当前阶段"模块，改用顶部五阶段指示条
 
         # 添加弹性空间
         layout.addStretch()
@@ -526,8 +524,11 @@ class AIConversationTab(QWidget):
         # ===== V2: 清空UI（移除了旧组件引用） =====
         self.chat_widget.clear_messages()
         self.input_text.clear()
-        self.stage_label.setText("等待用户输入...")
         self.save_btn.setEnabled(False)
+
+        # V2: 重置阶段指示条
+        if hasattr(self, 'stage_indicator'):
+            self.stage_indicator.reset()
 
         # V2: 重置快速结论面板
         if hasattr(self, 'quick_result_panel'):
@@ -559,7 +560,9 @@ class AIConversationTab(QWidget):
     def _on_welcome_message(self, message: str):
         """接收欢迎消息"""
         self.chat_widget.add_assistant_message(message)
-        self.stage_label.setText("💬 等待您的输入")
+        # V2: 阶段指示条保持在阶段1
+        if hasattr(self, 'stage_indicator'):
+            self.stage_indicator.set_current_stage(1)
         self.input_text.setFocus()
 
     def _on_send_clicked(self):
@@ -678,8 +681,7 @@ class AIConversationTab(QWidget):
             message
         )
 
-        # 更新右侧面板的阶段信息
-        self.stage_label.setText(f"⚙️ {stage} ({progress}%)")
+        # V2: 阶段指示条由 _update_right_panel 统一更新
 
         # 右侧面板滚动到顶部，让用户看到最新的进度信息
         if hasattr(self, 'right_panel_scroll_area'):
@@ -729,18 +731,20 @@ class AIConversationTab(QWidget):
         """
         context = self.conversation_service.context
 
-        # ===== V2: 更新阶段显示文本 =====
-        stage_text = {
-            ConversationStage.INIT: "初始化",
-            ConversationStage.STAGE1_ICEBREAK: "破冰阶段",
-            ConversationStage.STAGE2_DEEPEN: "深入分析",       # V2新增
-            ConversationStage.STAGE3_COLLECT: "信息收集",      # V2更名
-            ConversationStage.STAGE4_VERIFY: "回溯验证",       # V2更名
-            ConversationStage.STAGE5_REPORT: "生成报告",       # V2更名
-            ConversationStage.QA: "问答交互",
-            ConversationStage.COMPLETED: "已完成"
-        }.get(context.stage, "未知")
-        self.stage_label.setText(f"📍 {stage_text}")
+        # ===== V2: 更新阶段指示条 =====
+        stage_to_indicator = {
+            ConversationStage.INIT: 1,
+            ConversationStage.STAGE1_ICEBREAK: 1,
+            ConversationStage.STAGE2_DEEPEN: 2,
+            ConversationStage.STAGE3_COLLECT: 3,
+            ConversationStage.STAGE4_VERIFY: 4,
+            ConversationStage.STAGE5_REPORT: 5,
+            ConversationStage.QA: 5,  # QA阶段显示为报告完成
+            ConversationStage.COMPLETED: 5
+        }
+        indicator_stage = stage_to_indicator.get(context.stage, 1)
+        if hasattr(self, 'stage_indicator'):
+            self.stage_indicator.set_current_stage(indicator_stage)
 
         # ===== V2: 更新FlowGuard信息收集进度 =====
         self._update_flowguard_progress()
@@ -762,6 +766,10 @@ class AIConversationTab(QWidget):
         )
 
         self.save_btn.setEnabled(False)
+
+    def _on_stage_indicator_clicked(self, stage: int):
+        """阶段指示条点击（仅用于日志记录，介绍由组件内部显示）"""
+        self.logger.debug(f"用户点击了阶段指示条: 阶段{stage}")
 
     def _on_new_conversation_clicked(self):
         """新对话按钮点击"""

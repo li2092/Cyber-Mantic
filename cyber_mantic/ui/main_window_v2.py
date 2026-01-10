@@ -46,6 +46,8 @@ if HAS_PYQT6:
     )
     from ui.components.sidebar_v2 import SidebarWidgetV2
     from ui.widgets.chat_widget_v2 import ChatWidgetV2
+    from ui.widgets.stage_indicator import StageIndicatorBar
+    from ui.widgets.theory_card_panel import TheoryCardPanel
     from ui.tabs.settings_tab_v2 import SettingsTabV2
 
     # 原有标签页（暂时保留）
@@ -173,8 +175,8 @@ if HAS_PYQT6:
             # 信息面板引用
             self.progress_bar: Optional[QProgressBar] = None
             self.progress_label: Optional[QLabel] = None
-            self.stage_label: Optional[QLabel] = None
-            self.theory_labels: dict = {}
+            self.theory_card_panel: Optional[TheoryCardPanel] = None
+            self.stage_indicator: Optional[StageIndicatorBar] = None
 
             # 设置应用图标
             self._set_app_icon()
@@ -324,6 +326,11 @@ if HAS_PYQT6:
             toolbar = self._create_chat_toolbar()
             chat_layout.addWidget(toolbar)
 
+            # 五阶段指示条
+            self.stage_indicator = StageIndicatorBar(theme=self.theme)
+            self.stage_indicator.stage_clicked.connect(self._on_stage_indicator_clicked)
+            chat_layout.addWidget(self.stage_indicator)
+
             # 聊天消息区域
             self.chat_widget = ChatWidgetV2(theme=self.theme)
             chat_layout.addWidget(self.chat_widget, 1)
@@ -427,13 +434,9 @@ if HAS_PYQT6:
             progress_card = self._create_progress_card()
             layout.addWidget(progress_card)
 
-            # 理论分析卡片
-            theories_card = self._create_theories_card()
-            layout.addWidget(theories_card)
-
-            # 当前阶段
-            stage_card = self._create_stage_card()
-            layout.addWidget(stage_card)
+            # 理论分析卡片面板（新版）
+            self.theory_card_panel = TheoryCardPanel(theme=self.theme)
+            layout.addWidget(self.theory_card_panel)
 
             layout.addStretch()
 
@@ -487,32 +490,9 @@ if HAS_PYQT6:
 
             return card
 
-        def _create_stage_card(self) -> QFrame:
-            """创建当前阶段卡片"""
-            card = QFrame()
-            card.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {self.colors['card_bg']};
-                    border: 1px solid {self.colors['card_border']};
-                    border-radius: {border_radius.md}px;
-                }}
-            """)
-
-            layout = QVBoxLayout(card)
-            layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
-            layout.setSpacing(spacing.sm)
-
-            title_label = QLabel("📍 当前阶段")
-            title_label.setFont(QFont("Microsoft YaHei", font_size.sm, QFont.Weight.Bold))
-            title_label.setStyleSheet(f"color: {self.colors['text_primary']}; background: transparent; border: none;")
-            layout.addWidget(title_label)
-
-            self.stage_label = QLabel("💬 等待输入问题")
-            self.stage_label.setWordWrap(True)
-            self.stage_label.setStyleSheet(f"color: {self.colors['text_secondary']}; background: transparent; border: none;")
-            layout.addWidget(self.stage_label)
-
-            return card
+        def _on_stage_indicator_clicked(self, stage: int):
+            """阶段指示条点击回调"""
+            self.logger.debug(f"阶段指示条点击: 阶段 {stage}")
 
         def _create_info_card(self, title: str, content: str) -> QFrame:
             """创建信息卡片"""
@@ -540,80 +520,6 @@ if HAS_PYQT6:
             layout.addWidget(content_label)
 
             return card
-
-        def _create_theories_card(self) -> QFrame:
-            """创建理论分析卡片"""
-            card = QFrame()
-            card.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {self.colors['card_bg']};
-                    border: 1px solid {self.colors['card_border']};
-                    border-radius: {border_radius.md}px;
-                }}
-            """)
-
-            layout = QVBoxLayout(card)
-            layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
-            layout.setSpacing(spacing.xs)
-
-            title = QLabel("🔮 理论分析")
-            title.setFont(QFont("Microsoft YaHei", font_size.sm, QFont.Weight.Bold))
-            title.setStyleSheet(f"color: {self.colors['text_primary']}; background: transparent; border: none;")
-            layout.addWidget(title)
-
-            # 初始化理论标签字典
-            self.theory_labels = {}
-            theories = ["小六壬", "测字术", "八字", "紫微斗数", "奇门遁甲", "大六壬", "六爻", "梅花易数"]
-            for t in theories:
-                item = QLabel(f"  ⬚  {t}")
-                item.setStyleSheet(f"color: {self.colors['text_muted']}; background: transparent; border: none;")
-                layout.addWidget(item)
-                self.theory_labels[t] = item
-
-            return card
-
-        def _update_theory_status(self, theory_name: str, status: str, data: dict = None):
-            """更新理论状态显示"""
-            if theory_name not in self.theory_labels:
-                return
-
-            label = self.theory_labels[theory_name]
-
-            if status == 'started':
-                # 正在分析
-                label.setText(f"  ⏳  {theory_name}  分析中...")
-                label.setStyleSheet(f"color: {self.colors['accent']}; background: transparent; border: none;")
-            elif status == 'completed':
-                # 分析完成
-                summary = data.get('summary', '完成') if data else '完成'
-                judgment = data.get('judgment', '平') if data else '平'
-
-                # 根据吉凶设置颜色
-                if judgment == '吉':
-                    color = self.colors.get('success', '#22C55E')
-                    icon = '✅'
-                elif judgment == '凶':
-                    color = self.colors.get('warning', '#F59E0B')
-                    icon = '⚠️'
-                else:
-                    color = self.colors.get('text_secondary', '#64748B')
-                    icon = '✔️'
-
-                # 截断过长的摘要
-                if len(summary) > 15:
-                    summary = summary[:15] + '...'
-
-                label.setText(f"  {icon}  {theory_name}  {summary}")
-                label.setStyleSheet(f"color: {color}; background: transparent; border: none;")
-            elif status == 'error':
-                label.setText(f"  ❌  {theory_name}  失败")
-                label.setStyleSheet(f"color: {self.colors.get('warning', '#F59E0B')}; background: transparent; border: none;")
-
-        def _reset_theory_status(self):
-            """重置所有理论状态"""
-            for theory_name, label in self.theory_labels.items():
-                label.setText(f"  ⬚  {theory_name}")
-                label.setStyleSheet(f"color: {self.colors['text_muted']}; background: transparent; border: none;")
 
         def _add_placeholder_page(self, nav_id: str, name: str):
             """添加占位页面"""
@@ -774,6 +680,10 @@ if HAS_PYQT6:
             self.sidebar.set_theme(theme)
             if hasattr(self, 'chat_widget'):
                 self.chat_widget.set_theme(theme)
+            if hasattr(self, 'stage_indicator') and self.stage_indicator:
+                self.stage_indicator.set_theme(theme)
+            if hasattr(self, 'theory_card_panel') and self.theory_card_panel:
+                self.theory_card_panel.set_theme(theme)
 
             QMessageBox.information(
                 self, "主题已更改",
@@ -815,7 +725,8 @@ if HAS_PYQT6:
 
             # 重置信息面板
             self._reset_info_panel()
-            self._reset_theory_status()
+            if self.theory_card_panel:
+                self.theory_card_panel.reset_all()
 
             # 启动新对话
             self._start_conversation()
@@ -883,12 +794,25 @@ if HAS_PYQT6:
                 self.progress_bar.setValue(progress)
             if self.progress_label:
                 self.progress_label.setText(f"{stage}: {message}")
-            if self.stage_label:
-                self.stage_label.setText(f"🔄 {stage}")
+
+            # 同步阶段指示条
+            if self.stage_indicator:
+                stage_map = {
+                    "破冰阶段": 1, "阶段1": 1, "小六壬": 1,
+                    "深入阶段": 2, "阶段2": 2, "测字术": 2,
+                    "信息收集": 3, "阶段3": 3, "收集信息": 3,
+                    "回溯验证": 4, "阶段4": 4, "验证": 4,
+                    "生成报告": 5, "阶段5": 5, "报告": 5,
+                }
+                for key, stage_num in stage_map.items():
+                    if key in stage:
+                        self.stage_indicator.set_current_stage(stage_num)
+                        break
 
         def _on_theory_updated(self, event_type: str, theory_name: str, data: dict):
             """处理理论状态更新"""
-            self._update_theory_status(theory_name, event_type, data)
+            if self.theory_card_panel:
+                self.theory_card_panel.update_theory_status(theory_name, event_type, data)
 
         def _on_conversation_error(self, error_msg: str):
             """处理对话错误"""
@@ -919,8 +843,8 @@ if HAS_PYQT6:
                 self.progress_bar.setValue(0)
             if self.progress_label:
                 self.progress_label.setText("等待开始...")
-            if self.stage_label:
-                self.stage_label.setText("💬 等待输入问题")
+            if self.stage_indicator:
+                self.stage_indicator.reset()
 
         def _on_save_conversation(self):
             """保存对话"""

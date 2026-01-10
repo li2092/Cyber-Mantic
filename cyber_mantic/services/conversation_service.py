@@ -990,6 +990,12 @@ MBTI：{self.context.mbti_type or '未提供'}
     async def _run_deep_analysis(self, progress_callback, theory_callback=None):
         """执行深度分析（重构版：使用统一的理论处理函数）"""
         if not self.context.birth_info:
+            self.logger.warning("_run_deep_analysis: birth_info 为空，跳过分析")
+            return
+
+        # 检查是否有选中的理论
+        if not self.context.selected_theories:
+            self.logger.warning("_run_deep_analysis: selected_theories 为空，无理论可执行")
             return
 
         user_input = UserInput(
@@ -1012,6 +1018,10 @@ MBTI：{self.context.mbti_type or '未提供'}
             else:
                 selected_theory_names.append(str(t))
 
+        # 统计执行情况
+        executed_count = 0
+        skipped_theories = []
+
         # 使用统一方法处理所有理论
         for theory_name in selected_theory_names:
             if theory_name in self.THEORY_CONFIGS:
@@ -1021,6 +1031,17 @@ MBTI：{self.context.mbti_type or '未提供'}
                     progress_callback,
                     theory_callback
                 )
+                executed_count += 1
+            else:
+                # 记录被跳过的理论（小六壬/测字术已在前面阶段执行，属于正常情况）
+                if theory_name not in ("小六壬", "测字术"):
+                    skipped_theories.append(theory_name)
+                    self.logger.warning(f"理论 '{theory_name}' 不在 THEORY_CONFIGS 中，已跳过")
+
+        # 记录执行统计
+        self.logger.info(f"深度分析完成: 执行了 {executed_count}/{len(selected_theory_names)} 个理论")
+        if skipped_theories:
+            self.logger.warning(f"被跳过的理论: {skipped_theories}")
 
     def _retry_msg(self, stage: str) -> str:
         """生成重试提示（V2: 使用FlowGuard显示进度）"""

@@ -350,15 +350,17 @@ class HistoryTab(QWidget):
         self.compare_btn.setEnabled(count == 2)
 
     def _view_history_report(self, report_id: str):
-        """查看历史报告"""
+        """查看历史报告 - 使用独立对话框"""
         try:
             report = self.history_manager.get_report_by_id(report_id)
             if not report:
                 QMessageBox.warning(self, "错误", "无法加载报告")
                 return
 
-            # 发射信号通知主窗口
-            self.report_selected.emit(report)
+            # 使用独立对话框查看报告
+            from ui.dialogs.history_report_viewer import HistoryReportViewerDialog
+            dialog = HistoryReportViewerDialog(report, self)
+            dialog.exec()
         except Exception as e:
             self.error_handler.handle_error(e, "查看历史报告")
 

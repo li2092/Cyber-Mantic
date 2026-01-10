@@ -99,11 +99,15 @@ class TheorySelector:
     def __init__(self):
         pass
 
+    # 在 Stage 1/2 已执行的理论，Stage 3 不再重复选择
+    ALREADY_EXECUTED_THEORIES = {"小六壬", "测字术"}
+
     def select_theories(
         self,
         user_input: UserInput,
         max_theories: int = DEFAULT_MAX_THEORIES,
-        min_theories: int = DEFAULT_MIN_THEORIES
+        min_theories: int = DEFAULT_MIN_THEORIES,
+        exclude_theories: Optional[set] = None
     ) -> Tuple[List[Dict[str, Any]], Optional[List[str]]]:
         """
         选择最适合的理论组合
@@ -112,6 +116,7 @@ class TheorySelector:
             user_input: 用户输入
             max_theories: 最多选择几个理论
             min_theories: 最少选择几个理论
+            exclude_theories: 要排除的理论集合（默认排除已在Stage1/2执行的小六壬和测字术）
 
         Returns:
             (选中的理论列表, 缺失信息建议)
@@ -119,11 +124,19 @@ class TheorySelector:
         question_type = user_input.question_type
         mbti_type = user_input.mbti_type
 
+        # 默认排除 Stage 1/2 已执行的理论
+        if exclude_theories is None:
+            exclude_theories = self.ALREADY_EXECUTED_THEORIES
+
         all_theories = TheoryRegistry.get_all_theories()
 
         # 计算所有理论的适配度
         fitness_scores = []
         for theory_name, theory in all_theories.items():
+            # 跳过已排除的理论（如 Stage 1/2 已执行的小六壬、测字术）
+            if theory_name in exclude_theories:
+                continue
+
             fitness = self.calculate_theory_fitness(
                 user_input,
                 question_type,

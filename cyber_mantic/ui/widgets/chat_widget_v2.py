@@ -216,9 +216,6 @@ class SmoothTypewriter:
     打字完成时无需重新渲染，因此无跳变。
     """
 
-    # 信号
-    finished = pyqtSignal()
-
     def __init__(
         self,
         text_browser: QTextBrowser,
@@ -226,7 +223,8 @@ class SmoothTypewriter:
         char_delay: int = 20,
         newline_delay: int = 260,
         chunk_size: int = 1,
-        theme: str = "light"
+        theme: str = "light",
+        scroll_callback=None
     ):
         self.text_browser = text_browser
         self.full_content = content
@@ -234,6 +232,7 @@ class SmoothTypewriter:
         self.newline_delay = newline_delay
         self.chunk_size = chunk_size
         self.theme = theme
+        self.scroll_callback = scroll_callback  # 滚动回调函数
 
         self.renderer = ProgressiveMarkdownRenderer(theme)
         self.current_index = 0
@@ -284,9 +283,9 @@ class SmoothTypewriter:
         html = self.renderer.render(current_text, is_complete=False)
         self.text_browser.setHtml(html)
 
-        # 滚动到底部
-        scrollbar = self.text_browser.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        # 触发父级滚动回调
+        if self.scroll_callback:
+            self.scroll_callback()
 
         # 换行时增加延迟
         if has_newline:
@@ -315,10 +314,11 @@ class AutoHeightTextBrowser(QTextBrowser):
 
     def _adjust_height(self):
         if self.width() > 0:
-            self.document().setTextWidth(self.width() - 20)
+            # 增加右侧裕量，防止文字被遮挡
+            self.document().setTextWidth(self.width() - 40)
         self.document().adjustSize()
         doc_height = self.document().size().height()
-        new_height = max(int(doc_height + 30), self._min_height)
+        new_height = max(int(doc_height + 35), self._min_height)
         self.setMinimumHeight(new_height)
         self.setMaximumHeight(new_height)
 
@@ -349,6 +349,7 @@ class ChatBubble(QFrame):
         content: str,
         animated: bool = False,
         theme: str = "light",
+        scroll_callback=None,
         parent=None
     ):
         super().__init__(parent)
@@ -358,13 +359,15 @@ class ChatBubble(QFrame):
         self.theme = theme
         self.colors = get_colors(theme)
         self.typewriter: Optional[SmoothTypewriter] = None
+        self.scroll_callback = scroll_callback  # 滚动回调
 
         self._setup_ui()
 
     def _setup_ui(self):
         """设置UI"""
         main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(spacing.md, spacing.sm, spacing.md, spacing.sm)
+        # 左边距小，右边距大，防止文字被遮挡
+        main_layout.setContentsMargins(8, spacing.sm, 24, spacing.sm)
         main_layout.setSpacing(0)
 
         if self.role == MessageRole.USER:
@@ -408,38 +411,41 @@ class ChatBubble(QFrame):
 
     def _setup_ai_bubble(self, main_layout: QHBoxLayout):
         """AI气泡 - 左侧，带logo头像，文字正确换行"""
-        main_layout.addSpacing(spacing.sm)
+        # 减少左侧间距
+        main_layout.addSpacing(4)
 
         # 头像区域
         avatar_container = QWidget()
-        avatar_container.setFixedWidth(36)
+        avatar_container.setFixedWidth(40)
         avatar_layout = QVBoxLayout(avatar_container)
         avatar_layout.setContentsMargins(0, 0, 0, 0)
         avatar_layout.setSpacing(0)
         avatar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # Logo头像
+        # Logo头像 - 增大尺寸提升清晰度
         logo_label = QLabel()
-        logo_label.setFixedSize(32, 32)
+        logo_label.setFixedSize(36, 36)
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_label.setStyleSheet(f"""
-            background: {self.colors['primary_bg']};
-            border-radius: 16px;
+        logo_label.setStyleSheet("""
+            background: #FFFFFF;
+            border-radius: 18px;
+            border: 1px solid #E5E7EB;
         """)
 
-        # 尝试加载真实logo
+        # 尝试加载真实logo - 使用更大的缩放尺寸提升清晰度
         logo_path = self._get_logo_path()
         if logo_path and os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
+            # 使用更大的尺寸和高质量缩放
             scaled = pixmap.scaled(
-                28, 28,
+                32, 32,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
             logo_label.setPixmap(scaled)
         else:
             logo_label.setText("🔮")
-            logo_label.setFont(QFont("Segoe UI Emoji", 14))
+            logo_label.setFont(QFont("Segoe UI Emoji", 16))
 
         avatar_layout.addWidget(logo_label)
         avatar_layout.addStretch()
@@ -448,7 +454,7 @@ class ChatBubble(QFrame):
         # 气泡容器
         bubble_container = QWidget()
         bubble_container_layout = QVBoxLayout(bubble_container)
-        bubble_container_layout.setContentsMargins(spacing.xs, 0, 0, 0)
+        bubble_container_layout.setContentsMargins(6, 0, 0, 0)  # 减少左边距
         bubble_container_layout.setSpacing(4)
 
         # 名称标签
@@ -461,7 +467,8 @@ class ChatBubble(QFrame):
         bubble = QFrame()
         bubble.setObjectName("aiBubble")
         bubble_layout = QVBoxLayout(bubble)
-        bubble_layout.setContentsMargins(spacing.md, spacing.sm + 4, spacing.md, spacing.sm + 4)
+        # 增加右侧内边距，防止文字被遮挡
+        bubble_layout.setContentsMargins(14, 10, 28, 10)
         bubble_layout.setSpacing(0)
 
         # 内容 - 使用TextBrowser支持富文本和自动换行
@@ -487,7 +494,8 @@ class ChatBubble(QFrame):
                 char_delay=20,
                 newline_delay=260,
                 chunk_size=1,
-                theme=self.theme
+                theme=self.theme,
+                scroll_callback=self.scroll_callback
             )
             self.typewriter.start()
         else:
@@ -507,11 +515,12 @@ class ChatBubble(QFrame):
             }}
         """)
         bubble.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        bubble.setMaximumWidth(700)  # 最大宽度限制，防止文字被遮挡
+        # 不设置最大宽度，让气泡自适应容器宽度
 
         bubble_container_layout.addWidget(bubble)
         main_layout.addWidget(bubble_container, 1)
-        main_layout.addStretch(0)  # 移除右侧弹性空间，让气泡自然扩展
+        # 右侧留空间，防止文字被遮挡
+        main_layout.addSpacing(20)
 
     def _get_logo_path(self) -> str:
         """获取Logo路径"""
@@ -599,7 +608,13 @@ class ChatWidgetV2(QWidget):
 
     def add_assistant_message(self, content: str, animated: bool = True):
         """添加AI消息"""
-        bubble = ChatBubble(MessageRole.ASSISTANT, content, animated=animated, theme=self.theme)
+        bubble = ChatBubble(
+            MessageRole.ASSISTANT,
+            content,
+            animated=animated,
+            theme=self.theme,
+            scroll_callback=self._scroll_to_bottom  # 传递滚动回调
+        )
         self._add_bubble(bubble)
         self.message_added.emit("assistant", content)
 
